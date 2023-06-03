@@ -13,6 +13,9 @@
 
 mod interface;
 mod ptr;
+pub mod slice_writer;
+
+mod hacks;
 
 pub use interface::{Ctor, CtorArgs};
 pub use ptr::{Init, Uninit};

@@ -68,6 +68,14 @@ impl<'a, T: ?Sized> Uninit<'a, T> {
         self.ptr.as_ptr()
     }
 
+    /// Convert an `Uninit` into a raw pointer
+    ///
+    /// This pointer may only be written to before it is read from
+    #[inline]
+    pub const fn into_raw_non_null(self) -> NonNull<T> {
+        self.ptr
+    }
+
     /// Get the underlying raw pointer from an `Uninit`
     ///
     /// This pointer must have been written to before it is read from
@@ -114,9 +122,17 @@ impl<'a, T: ?Sized> Init<'a, T> {
     /// Convert an `Init` into a raw pointer
     #[inline]
     pub const fn into_raw(self) -> *mut T {
+        self.into_raw_non_null().as_ptr()
+    }
+
+    /// Convert an `Uninit` into a raw pointer
+    ///
+    /// This pointer may only be written to before it is read from
+    #[inline]
+    pub const fn into_raw_non_null(self) -> NonNull<T> {
         let ptr = self.ptr;
         core::mem::forget(self);
-        ptr.as_ptr()
+        ptr
     }
 
     /// Get the underlying raw pointer from an `Init`

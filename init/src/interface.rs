@@ -1,7 +1,7 @@
 use crate::{Init, Uninit};
 
 /// A type which is constructable using `Args`
-pub trait Ctor<Args> {
+pub trait Ctor<Args = ()> {
     /// Initialize a the type `Self` using `args: Args`
     fn init(uninit: Uninit<'_, Self>, args: Args) -> Init<'_, Self>;
 }
@@ -16,5 +16,11 @@ impl<T: ?Sized, Args: CtorArgs<T>> Ctor<Args> for T {
     #[inline]
     fn init(uninit: Uninit<'_, Self>, args: Args) -> Init<'_, Self> {
         args.init_with(uninit)
+    }
+}
+
+impl Ctor<u8> for u8 {
+    fn init(uninit: Uninit<'_, Self>, args: u8) -> Init<'_, Self> {
+        uninit.write(args)
     }
 }

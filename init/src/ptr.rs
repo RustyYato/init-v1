@@ -1,7 +1,9 @@
+mod iter;
 mod raw;
 
 use core::mem::MaybeUninit;
 
+pub use iter::{IterInit, IterUninit};
 pub use raw::{Init, Uninit};
 
 // SAFETY: we only call drop on a `T`, so trivially correct for `may_dangle`
@@ -59,45 +61,10 @@ impl<'a, T> Uninit<'a, MaybeUninit<T>> {
     }
 }
 
-impl<'a, T: Copy> Uninit<'a, [T]> {
+impl<'a, T> Uninit<'a, [T]> {
     /// The length of the slice
     pub const fn len(&self) -> usize {
-        // SAFETY:
-        //
-        // This trick assumes that a pointer to a slice has one of two representations
-        // either:
-        //
-        // [ptr, len] or [len, ptr]
-        //
-        // And deconstructs a carefully selected slice where the pointer is 0 and
-        // the length is usize::MAX (all bits are 1), to detect which layout Rust chose
-        // Then it picks the right element from the actual slice.
-        //
-        // If the layout may change for every instance of `*mut [T]`, then this is broken
-        // but that seems impossible to implement for rustc (or any other Rust implementation)
-        // so this algorithm is SAFE and correct from that standpoint
-        //
-        // It is safe to transmute a pointer to usize, it simply drops it's provenance.
-        //
-        // If Rust picks a different layout that isn't compatible with `[usize; 2]`, then
-        // the transmute will fail to compile, so this is SAFE.
-        //
-        // This will all be optimized away to a direct access with even -O1
-        unsafe {
-            let [a, b] = core::mem::transmute::<*const [T], [usize; 2]>(
-                core::ptr::slice_from_raw_parts(0 as *const T, usize::MAX),
-            );
-
-            assert!(a == usize::MAX && b == 0 || a == 0 && b == usize::MAX);
-
-            let [c, d] = core::mem::transmute::<*const [T], [usize; 2]>(self.as_ptr());
-
-            if a == usize::MAX {
-                c
-            } else {
-                d
-            }
-        }
+        crate::hacks::ptr_slice_len(self.as_ptr())
     }
 
     /// Checks if the slice is empty (has length == 0)
@@ -105,6 +72,14 @@ impl<'a, T: Copy> Uninit<'a, [T]> {
         self.len() == 0
     }
 
+    /// An iterator over all elements of the slice
+    #[inline]
+    pub fn iter(self) -> IterUninit<'a, T> {
+        IterUninit::new(self)
+    }
+}
+
+impl<'a, T: Copy> Uninit<'a, [T]> {
     /// Copy the data from `slice` and convert to an `Init`
     ///
     /// # Panics
