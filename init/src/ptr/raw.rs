@@ -50,6 +50,16 @@ impl<'a, T: ?Sized> Uninit<'a, T> {
         }
     }
 
+    /// Create an `Uninit` from a reference
+    ///
+    /// NOTE: All writes to the `Uninit` will overwrite
+    /// this reference without dropping the existing `T`
+    #[inline]
+    pub fn from_ref(ptr: &'a mut T) -> Self {
+        // SAFETY: a reference is non-null, aligned, dereferencable, and unique for `'a`
+        unsafe { Self::from_raw(ptr) }
+    }
+
     /// Convert an `Uninit` into a raw pointer
     ///
     /// This pointer may only be written to before it is read from
@@ -89,6 +99,16 @@ impl<'a, T: ?Sized> Init<'a, T> {
             _brand: Invariant(PhantomData),
             ty: PhantomData,
         }
+    }
+
+    /// Create an `Uninit` from a reference
+    ///
+    /// NOTE: All writes to the `Uninit` will overwrite
+    /// this reference without dropping the existing `T`
+    #[inline]
+    pub fn from_ref(ptr: &'a mut T) -> Self {
+        // SAFETY: a reference is non-null, aligned, dereferencable, unique, and initialized for `'a`
+        unsafe { Self::from_raw(ptr) }
     }
 
     /// Convert an `Init` into a raw pointer

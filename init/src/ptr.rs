@@ -124,3 +124,17 @@ impl<'a, T: Copy> Uninit<'a, [T]> {
         unsafe { self.assume_init() }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::Uninit;
+
+    #[test]
+    fn test_slice_len() {
+        let mut data: [i32; 3] = [0, 1, 2];
+        let uninit = Uninit::from_ref(&mut data[..]);
+        // the pointer cannot be `3`, because the pointer `3` isn't aligned for i32
+        // and the `uninit` is aligned
+        assert_eq!(uninit.len(), 3);
+    }
+}
