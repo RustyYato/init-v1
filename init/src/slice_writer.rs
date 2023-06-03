@@ -43,7 +43,12 @@ impl<'a, T> SliceWriter<'a, T> {
 
     /// Returns true iff are all elements in the slice initialized
     pub fn is_complete(&self) -> bool {
-        self.iter.len() == 0
+        self.remaining_len() == 0
+    }
+
+    /// Returns true iff are all elements in the slice initialized
+    pub fn remaining_len(&self) -> usize {
+        self.iter.len()
     }
 
     /// Returns true iff any element panicked while initializing
