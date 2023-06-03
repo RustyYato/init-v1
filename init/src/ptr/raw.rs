@@ -1,6 +1,6 @@
 use core::{marker::PhantomData, ptr::NonNull};
 
-struct Invariant<'a>(PhantomData<&'a mut &'a mut ()>);
+struct Invariant<'a>(PhantomData<fn() -> *mut &'a ()>);
 
 /// `Uninit` is a pointer to uninitialized memory
 ///
@@ -10,6 +10,7 @@ struct Invariant<'a>(PhantomData<&'a mut &'a mut ()>);
 /// * aligned
 /// * non-null
 /// * dereferencable (for reads and writes, but reads may yield uninitialized memory)
+/// * not aliased by any unrelated pointers
 #[repr(transparent)]
 pub struct Uninit<'a, T: ?Sized> {
     ptr: NonNull<T>,
@@ -26,6 +27,7 @@ pub struct Uninit<'a, T: ?Sized> {
 /// * non-null
 /// * dereferencable (for reads and writes, but reads may yield uninitialized memory)
 /// * initialized for type `T`
+/// * not aliased by any unrelated pointers
 #[repr(transparent)]
 pub struct Init<'a, T: ?Sized> {
     ptr: NonNull<T>,
@@ -40,9 +42,10 @@ impl<'a, T: ?Sized> Uninit<'a, T> {
     ///
     /// You must uphold the guarantees of `Uninit`
     #[inline]
-    pub unsafe fn from_raw(ptr: *mut T) -> Self {
+    pub const unsafe fn from_raw(ptr: *mut T) -> Self {
         Self {
-            ptr: NonNull::new_unchecked(ptr),
+            // SAFETY: the pointer must be non-null because the caller guarantees it
+            ptr: unsafe { NonNull::new_unchecked(ptr) },
             _brand: Invariant(PhantomData),
         }
     }
@@ -50,14 +53,24 @@ impl<'a, T: ?Sized> Uninit<'a, T> {
     /// Convert an `Uninit` into a raw pointer
     ///
     /// This pointer may only be written to before it is read from
-    pub fn into_raw(self) -> *mut T {
+    #[inline]
+    pub const fn into_raw(self) -> *mut T {
+        self.ptr.as_ptr()
+    }
+
+    /// Get the underlying raw pointer from an `Uninit`
+    ///
+    /// This pointer must have been written to before it is read from
+    #[inline]
+    pub const fn as_ptr(&self) -> *const T {
         self.ptr.as_ptr()
     }
 
     /// Get the underlying raw pointer from an `Uninit`
     ///
     /// This pointer may only be written to before it is read from
-    pub fn as_mut_raw(&mut self) -> *mut T {
+    #[inline]
+    pub fn as_mut_ptr(&mut self) -> *mut T {
         self.ptr.as_ptr()
     }
 }
@@ -69,27 +82,33 @@ impl<'a, T: ?Sized> Init<'a, T> {
     ///
     /// You must uphold the guarantees of `Init`
     #[inline]
-    pub unsafe fn from_raw(ptr: *mut T) -> Self {
+    pub const unsafe fn from_raw(ptr: *mut T) -> Self {
         Self {
-            ptr: NonNull::new_unchecked(ptr),
+            // SAFETY: the pointer must be non-null because the caller guarantees it
+            ptr: unsafe { NonNull::new_unchecked(ptr) },
             _brand: Invariant(PhantomData),
             ty: PhantomData,
         }
     }
 
     /// Convert an `Init` into a raw pointer
-    pub fn into_raw(self) -> *mut T {
-        self.ptr.as_ptr()
+    #[inline]
+    pub const fn into_raw(self) -> *mut T {
+        let ptr = self.ptr;
+        core::mem::forget(self);
+        ptr.as_ptr()
     }
 
     /// Get the underlying raw pointer from an `Init`
     ///
     /// This pointer may only be used for reads, no writes
-    pub fn as_ptr(&mut self) -> *mut T {
+    #[inline]
+    pub const fn as_ptr(&self) -> *const T {
         self.ptr.as_ptr()
     }
 
     /// Get the underlying raw pointer from an `Init`
+    #[inline]
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.ptr.as_ptr()
     }
