@@ -26,6 +26,14 @@ impl<'a, T: ?Sized> Uninit<'a, T> {
         // All other guarantees come from the `Uninit` type
         unsafe { Init::from_raw(self.into_raw()) }
     }
+
+    /// Initialize self using a constructor
+    pub fn init<Args>(self, args: Args) -> Init<'a, T>
+    where
+        T: crate::Ctor<Args>,
+    {
+        crate::Ctor::init(self, args)
+    }
 }
 
 impl<'a, T> Uninit<'a, T> {

@@ -14,4 +14,5 @@
 mod interface;
 mod ptr;
 
+pub use interface::{Ctor, CtorArgs};
 pub use ptr::{Init, Uninit};
