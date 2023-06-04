@@ -17,12 +17,15 @@ extern crate alloc;
 extern crate std;
 
 pub mod interface;
+pub mod layout_provider;
+
 mod ptr;
 pub mod slice_writer;
 
-mod slice;
-
+#[cfg(feature = "alloc")]
+pub mod boxed;
 mod hacks;
+mod slice;
 
 pub use interface::{ctor, Ctor, CtorArgs};
 pub use ptr::{Init, Uninit};
