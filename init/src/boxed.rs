@@ -15,7 +15,7 @@ use crate::{
 /// Create a new value of the heap, initializing it in place
 pub fn boxed<T: ?Sized + Ctor<Args>, Args>(args: Args) -> Box<T>
 where
-    T::LayoutProvider: LayoutProvider,
+    T::LayoutProvider: LayoutProvider<T, Args>,
 {
     let layout = lp::layout_of::<T, Args>(&args).expect("Could not extract layout from arguments");
     let is_zeroed = lp::is_zeroed::<T, Args>(&args);

@@ -1,3 +1,5 @@
+//! Constructors for slices
+
 use core::{alloc::Layout, ptr::NonNull};
 
 use crate::{
@@ -15,7 +17,9 @@ impl<T: Ctor> Ctor for [T] {
     }
 }
 
+/// A slice constructor which copies the argument and uses it to construct each element of the slice
 #[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
 pub struct CopyArgs<Args>(pub Args);
 
 impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
@@ -38,7 +42,9 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
     }
 }
 
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
 #[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
 pub struct CloneArgs<Args>(pub Args);
 
 impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
@@ -73,6 +79,10 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
     }
 }
 
+/// A slice constructor which copies the argument and uses it to construct each element of the slice
+///
+/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
+#[derive(Debug, Clone, Copy)]
 pub struct CopyArgsLen<Args>(pub usize, pub Args);
 
 // SAFETY: The layout is compatible with cast
@@ -104,6 +114,10 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgsLen<Args>> for [T] {
     }
 }
 
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
+///
+/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
+#[derive(Debug, Clone, Copy)]
 pub struct CloneArgsLen<Args>(pub usize, pub Args);
 
 // SAFETY: The layout is compatible with cast
@@ -135,9 +149,15 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgsLen<Args>> for [T] {
     }
 }
 
+/// A layout provider for slices
 pub struct SliceLenLayoutProvider;
 
-impl LayoutProvider for SliceLenLayoutProvider {}
+impl<T, Args> LayoutProvider<[T], Args> for SliceLenLayoutProvider
+where
+    Self: MaybeLayoutProvider<[T], Args>,
+    [T]: Ctor<Args>,
+{
+}
 
 // SAFETY: The layout is compatible with cast
 unsafe impl<'a, T: Ctor<&'a T>> MaybeLayoutProvider<[T], &'a [T]> for SliceLenLayoutProvider {

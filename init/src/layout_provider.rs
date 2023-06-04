@@ -8,7 +8,6 @@ use crate::Ctor;
 pub fn layout_of<T, Args>(args: &Args) -> Option<Layout>
 where
     T: ?Sized + Ctor<Args>,
-    T::LayoutProvider: LayoutProvider,
 {
     <T::LayoutProvider as MaybeLayoutProvider<T, Args>>::layout_of(args)
 }
@@ -21,7 +20,6 @@ where
 pub unsafe fn cast<T, Args>(ptr: NonNull<u8>, args: &Args) -> NonNull<T>
 where
     T: ?Sized + Ctor<Args>,
-    T::LayoutProvider: LayoutProvider,
 {
     // SAFETY: guaranteed by caller
     unsafe { <T::LayoutProvider as MaybeLayoutProvider<T, Args>>::cast(ptr, args) }
@@ -68,12 +66,12 @@ pub unsafe trait MaybeLayoutProvider<T: ?Sized + Ctor<Args>, Args = ()> {
 }
 
 /// A type where `MaybeLayoutProvider::layout_of` returns `Some` for some arguments
-pub trait LayoutProvider {}
+pub trait LayoutProvider<T: ?Sized + Ctor<Args>, Args = ()>: MaybeLayoutProvider<T, Args> {}
 
 /// The layout provider for any sized type
 pub struct SizedLayoutProvider;
 
-impl LayoutProvider for SizedLayoutProvider {}
+impl<T: Ctor<Args>, Args> LayoutProvider<T, Args> for SizedLayoutProvider {}
 // SAFETY: The layout of a sized type doesn't depend on the argument type
 unsafe impl<T: Ctor<Args>, Args> MaybeLayoutProvider<T, Args> for SizedLayoutProvider {
     #[inline]

@@ -29,7 +29,7 @@ pub mod slice_writer;
 #[cfg(feature = "alloc")]
 pub mod boxed;
 mod hacks;
-mod slice;
+pub mod slice;
 
 pub use interface::{ctor, Ctor, CtorArgs};
 pub use ptr::{Init, Uninit};
