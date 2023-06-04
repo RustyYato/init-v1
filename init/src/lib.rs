@@ -19,6 +19,7 @@ extern crate std;
 pub mod interface;
 pub mod layout_provider;
 
+mod ext;
 mod ptr;
 pub mod slice_writer;
 

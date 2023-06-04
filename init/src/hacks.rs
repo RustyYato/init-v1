@@ -1,3 +1,4 @@
+#[allow(clippy::useless_transmute)]
 pub(crate) const fn ptr_slice_len<T>(ptr: *const [T]) -> usize {
     // SAFETY:
     //
@@ -22,7 +23,7 @@ pub(crate) const fn ptr_slice_len<T>(ptr: *const [T]) -> usize {
     // This will all be optimized away to a direct access with even -O1
     unsafe {
         let [a, b] = core::mem::transmute::<*const [T], [usize; 2]>(
-            core::ptr::slice_from_raw_parts(0 as *const T, usize::MAX),
+            core::ptr::slice_from_raw_parts(core::mem::transmute::<usize, *mut T>(0), usize::MAX),
         );
 
         assert!(a == usize::MAX && b == 0 || a == 0 && b == usize::MAX);
