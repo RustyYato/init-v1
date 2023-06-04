@@ -11,6 +11,11 @@
 //!
 //! A safe library for initializing values in place without any intermediate copies
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+#[cfg(feature = "std")]
+extern crate std;
+
 mod interface;
 mod ptr;
 pub mod slice_writer;
