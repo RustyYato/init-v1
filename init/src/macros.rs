@@ -33,6 +33,6 @@ macro_rules! init_struct {
     }};
 }
 
-pub fn bind_lifetimes<'a, T: ?Sized, U: ?Sized>(_: &Uninit<'a, T>, _: &Uninit<'a, U>) {
+pub fn bind_lifetimes<'a, T: ?Sized, U: ?Sized>(_: &'a Uninit<'_, T>, _: &Uninit<'a, U>) {
     //
 }
