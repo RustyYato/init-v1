@@ -55,7 +55,9 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
 impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
     #[inline]
     fn init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a [T]) -> crate::Init<'u, Self> {
-        assert_eq!(uninit.len(), source.len());
+        if uninit.len() != source.len() {
+            length_error(uninit.len(), source.len())
+        }
 
         let mut writer = SliceWriter::new(uninit);
 
@@ -76,7 +78,9 @@ impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
 impl<'a, T: Ctor<&'a mut T>> Ctor<&'a mut [T]> for [T] {
     #[inline]
     fn init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a mut [T]) -> crate::Init<'u, Self> {
-        assert_eq!(uninit.len(), source.len());
+        if uninit.len() != source.len() {
+            length_error(uninit.len(), source.len())
+        }
 
         let mut writer = SliceWriter::new(uninit);
 
@@ -92,4 +96,8 @@ impl<'a, T: Ctor<&'a mut T>> Ctor<&'a mut [T]> for [T] {
         // is complete
         unsafe { writer.finish_unchecked() }
     }
+}
+
+fn length_error(expected: usize, found: usize) -> ! {
+    panic!("Could not initialize from slice because lengths didn't match, expected length: {expected} but got {found}")
 }
