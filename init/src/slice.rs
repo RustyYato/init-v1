@@ -1,6 +1,14 @@
-use crate::{slice_writer::SliceWriter, Ctor};
+use core::alloc::Layout;
+
+use crate::{
+    interface::{LayoutProvider, MaybeLayoutProvider, NoLayoutProvider},
+    slice_writer::SliceWriter,
+    Ctor,
+};
 
 impl<T: Ctor> Ctor for [T] {
+    type LayoutProvider = NoLayoutProvider;
+
     #[inline]
     fn init(uninit: crate::Uninit<'_, Self>, (): ()) -> crate::Init<'_, Self> {
         uninit.init(CopyArgs(()))
@@ -11,6 +19,8 @@ impl<T: Ctor> Ctor for [T] {
 pub struct CopyArgs<Args>(pub Args);
 
 impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
+    type LayoutProvider = NoLayoutProvider;
+
     #[inline]
     fn init(
         uninit: crate::Uninit<'_, Self>,
@@ -30,6 +40,8 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
 pub struct CloneArgs<Args>(pub Args);
 
 impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
+    type LayoutProvider = NoLayoutProvider;
+
     #[inline]
     fn init(
         uninit: crate::Uninit<'_, Self>,
@@ -52,7 +64,24 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
     }
 }
 
+pub struct SliceLenLayoutProvider;
+
+impl LayoutProvider for SliceLenLayoutProvider {}
+
+// SAFETY: The layout is compatible with cast
+unsafe impl<'a, T: Ctor<&'a T>> MaybeLayoutProvider<[T], &'a [T]> for SliceLenLayoutProvider {
+    fn layout_of(args: &&[T]) -> Option<core::alloc::Layout> {
+        Layout::array::<T>(args.len()).ok()
+    }
+
+    unsafe fn cast(ptr: core::ptr::NonNull<u8>, args: &&[T]) -> core::ptr::NonNull<[T]> {
+        core::ptr::NonNull::slice_from_raw_parts(ptr.cast(), args.len())
+    }
+}
+
 impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
+    type LayoutProvider = SliceLenLayoutProvider;
+
     #[inline]
     fn init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a [T]) -> crate::Init<'u, Self> {
         if uninit.len() != source.len() {
@@ -75,7 +104,22 @@ impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
     }
 }
 
+// SAFETY: The layout is compatible with cast
+unsafe impl<'a, T: Ctor<&'a mut T>> MaybeLayoutProvider<[T], &'a mut [T]>
+    for SliceLenLayoutProvider
+{
+    fn layout_of(args: &&mut [T]) -> Option<core::alloc::Layout> {
+        Layout::array::<T>(args.len()).ok()
+    }
+
+    unsafe fn cast(ptr: core::ptr::NonNull<u8>, args: &&mut [T]) -> core::ptr::NonNull<[T]> {
+        core::ptr::NonNull::slice_from_raw_parts(ptr.cast(), args.len())
+    }
+}
+
 impl<'a, T: Ctor<&'a mut T>> Ctor<&'a mut [T]> for [T] {
+    type LayoutProvider = SliceLenLayoutProvider;
+
     #[inline]
     fn init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a mut [T]) -> crate::Init<'u, Self> {
         if uninit.len() != source.len() {

@@ -16,7 +16,7 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
-mod interface;
+pub mod interface;
 mod ptr;
 pub mod slice_writer;
 
