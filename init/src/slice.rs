@@ -1,6 +1,6 @@
 //! Constructors for slices
 
-use core::{alloc::Layout, ptr::NonNull};
+use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
     layout_provider::{LayoutProvider, MaybeLayoutProvider, NoLayoutProvider},
@@ -39,6 +39,30 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
 
         // SAFETY: the writer is complete
         unsafe { writer.finish_unchecked() }
+    }
+}
+
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub struct UninitSliceLen(pub usize);
+
+// SAFETY: The layout is compatible with cast
+unsafe impl<T> MaybeLayoutProvider<[MaybeUninit<T>], UninitSliceLen> for SliceLenLayoutProvider {
+    fn layout_of(args: &UninitSliceLen) -> Option<core::alloc::Layout> {
+        Layout::array::<T>(args.0).ok()
+    }
+
+    unsafe fn cast(ptr: NonNull<u8>, args: &UninitSliceLen) -> NonNull<[MaybeUninit<T>]> {
+        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
+    }
+}
+
+impl<T> Ctor<UninitSliceLen> for [MaybeUninit<T>] {
+    type LayoutProvider = SliceLenLayoutProvider;
+
+    fn init(uninit: crate::Uninit<'_, Self>, _: UninitSliceLen) -> crate::Init<'_, Self> {
+        uninit.uninit_slice()
     }
 }
 

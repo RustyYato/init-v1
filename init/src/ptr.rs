@@ -61,6 +61,15 @@ impl<'a, T> Uninit<'a, MaybeUninit<T>> {
     }
 }
 
+impl<'a, T> Uninit<'a, [MaybeUninit<T>]> {
+    /// Convert to an `Init` without writing to the underlying pointer
+    #[inline]
+    pub const fn uninit_slice(self) -> Init<'a, [MaybeUninit<T>]> {
+        // SAFETY: `MaybeUninit` may safely point to uninitialized memory
+        unsafe { self.assume_init() }
+    }
+}
+
 impl<'a, T> Uninit<'a, [T]> {
     /// The length of the slice
     pub const fn len(&self) -> usize {
