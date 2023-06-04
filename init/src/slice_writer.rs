@@ -123,6 +123,13 @@ impl<'a, T> SliceWriter<'a, T> {
     ///
     /// This writer must be complete
     pub unsafe fn finish_unchecked(self) -> Init<'a, [T]> {
+        if !self.is_complete() {
+            // SAFETY: caller guarantees that writer is complete
+            //
+            // This allows the poisoned check to be elided if LLVM can guarantee there were no panics
+            unsafe { core::hint::unreachable_unchecked() }
+        }
+
         if self.is_poisoned() {
             poisoned_error()
         }
