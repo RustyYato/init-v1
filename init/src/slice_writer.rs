@@ -61,7 +61,24 @@ impl<'a, T> SliceWriter<'a, T> {
     where
         T: Ctor<Args>,
     {
-        let init = self.iter.next().unwrap().init(args);
+        assert!(!self.is_complete());
+        // SAFETY: this writer isn't complete
+        unsafe { self.init_unchecked(args) }
+    }
+
+    /// Write the next element of the slice (write goes in order, from 0 -> len)
+    ///
+    /// # Safety
+    ///
+    /// This writer must not be complete
+    pub unsafe fn init_unchecked<Args>(&mut self, args: Args)
+    where
+        T: Ctor<Args>,
+    {
+        debug_assert!(!self.is_complete());
+        // SAFETY: The caller guarantees that this writer isn't complete,
+        // which ensure that the iterator isn't empty
+        let init = unsafe { self.iter.next_unchecked() }.init(args);
         // We take ownership of the newly constructed value
         core::mem::forget(init);
         self.init += 1;
@@ -92,7 +109,24 @@ impl<'a, T> SliceWriter<'a, T> {
 
     /// Write the next element of the slice (write goes in order, from 0 -> len)
     pub fn finish(self) -> Init<'a, [T]> {
-        assert!(self.is_complete() && !self.is_poisoned());
+        if !self.is_complete() {
+            incomplete_error()
+        }
+
+        // SAFETY: This writer is complete
+        unsafe { self.finish_unchecked() }
+    }
+
+    /// Write the next element of the slice (write goes in order, from 0 -> len)
+    ///
+    /// # Safety
+    ///
+    /// This writer must be complete
+    pub unsafe fn finish_unchecked(self) -> Init<'a, [T]> {
+        if self.is_poisoned() {
+            poisoned_error()
+        }
+
         // SAFETY:
         // `get_remaining` is only called here and at `drop`, and it's
         // unsound to call any function after calling drop, so it could not have been called yet
@@ -100,4 +134,16 @@ impl<'a, T> SliceWriter<'a, T> {
         // at most once for this `SliceWriter`
         unsafe { ManuallyDrop::new(self).get_remaining() }
     }
+}
+
+#[cold]
+#[inline(never)]
+fn poisoned_error() -> ! {
+    panic!("Tried to finish an incomplete writer")
+}
+
+#[cold]
+#[inline(never)]
+fn incomplete_error() -> ! {
+    panic!("Tried to finish a poisoned writer")
 }

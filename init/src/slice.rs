@@ -8,7 +8,7 @@ impl<T: Ctor> Ctor for [T] {
 }
 
 #[repr(transparent)]
-struct CopyArgs<Args>(pub Args);
+pub struct CopyArgs<Args>(pub Args);
 
 impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
     #[inline]
@@ -27,7 +27,7 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
 }
 
 #[repr(transparent)]
-struct CloneArgs<Args>(pub Args);
+pub struct CloneArgs<Args>(pub Args);
 
 impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
     #[inline]
@@ -49,5 +49,22 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
         }
 
         writer.finish()
+    }
+}
+
+impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
+    #[inline]
+    fn init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a [T]) -> crate::Init<'u, Self> {
+        assert_eq!(uninit.len(), source.len());
+
+        let mut writer = SliceWriter::new(uninit);
+
+        for source in source {
+            // SAFETY:
+            unsafe { writer.init_unchecked(source) };
+        }
+
+        //SAFETY:
+        unsafe { writer.finish_unchecked() }
     }
 }

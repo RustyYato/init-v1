@@ -77,6 +77,24 @@ impl<T> RawIter<T> {
     fn remaining(&mut self) -> *mut [T] {
         core::ptr::slice_from_raw_parts_mut(self.start.as_ptr(), self.len())
     }
+
+    unsafe fn next_unchecked(&mut self) -> NonNull<T> {
+        if core::mem::size_of::<T>() == 0 {
+            self.end = (self.end as usize).wrapping_sub(1) as *mut T;
+
+            NonNull::dangling()
+        } else {
+            let current = self.start;
+            // SAFETY: This is the non-ZST case where `self.start` must be either
+            // one past the end or a member of the slice we checked that it't not
+            // equal to `self.end` which is one past the end, so `self.start` must
+            // be an element of the slice. So it's safe to increment the pointer
+            // and we'll stay inbound of the slice or one past the end.
+            // Which means it's still guaranteed to be `NonNull`
+            self.start = unsafe { NonNull::new_unchecked(self.start.as_ptr().add(1)) };
+            current
+        }
+    }
 }
 
 pub struct IterUninit<'a, T> {
@@ -101,6 +119,15 @@ impl<'a, T> IterUninit<'a, T> {
     #[inline]
     pub fn remaining(&mut self) -> *mut [T] {
         self.raw.remaining()
+    }
+
+    pub unsafe fn next_unchecked(&mut self) -> Uninit<'a, T> {
+        // SAFETY: the caller guarantees that this iterator isn't exhausted
+        let ptr = unsafe { self.raw.next_unchecked() };
+        // SAFETY: the raw iterator was created from an `Uninit<'_, T>` and
+        // raw only gives out distinct elements of the slice, which means they are
+        // all aligned, non-null, dereferencable, and unique
+        unsafe { Uninit::from_raw(ptr.as_ptr()) }
     }
 }
 

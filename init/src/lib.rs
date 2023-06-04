@@ -19,5 +19,5 @@ mod slice;
 
 mod hacks;
 
-pub use interface::{Ctor, CtorArgs};
+pub use interface::{ctor, Ctor, CtorArgs};
 pub use ptr::{Init, Uninit};

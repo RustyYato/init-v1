@@ -21,13 +21,6 @@ impl<T: ?Sized, Args: CtorArgs<T>> Ctor<Args> for T {
     }
 }
 
-impl Ctor<u8> for u8 {
-    #[inline]
-    fn init(uninit: Uninit<'_, Self>, args: u8) -> Init<'_, Self> {
-        uninit.write(args)
-    }
-}
-
 impl<T> Ctor for MaybeUninit<T> {
     #[inline]
     fn init(uninit: Uninit<'_, Self>, (): ()) -> Init<'_, Self> {
@@ -40,4 +33,12 @@ impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Init<'_, T>> CtorArgs<T> for F {
     fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
         self(uninit)
     }
+}
+
+/// a no-op helper function to guide type inference
+///
+/// Rust's type inference doesn't understand the indirection from
+/// `FnOnce()` to `CtorArgs` to `Ctor`, so use this no-op to guide inference
+pub fn ctor<T: ?Sized, F: FnOnce(Uninit<T>) -> Init<T>>(f: F) -> F {
+    f
 }
