@@ -60,11 +60,36 @@ impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
         let mut writer = SliceWriter::new(uninit);
 
         for source in source {
-            // SAFETY:
+            // SAFETY: The source and iterator have the same length
+            // so if the iterator has more elements, then the writer is
+            // also incomplete
             unsafe { writer.init_unchecked(source) };
         }
 
-        //SAFETY:
+        // SAFETY: The source and iterator have the same length
+        // so if the iterator has no more elements, then the writer
+        // is complete
+        unsafe { writer.finish_unchecked() }
+    }
+}
+
+impl<'a, T: Ctor<&'a mut T>> Ctor<&'a mut [T]> for [T] {
+    #[inline]
+    fn init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a mut [T]) -> crate::Init<'u, Self> {
+        assert_eq!(uninit.len(), source.len());
+
+        let mut writer = SliceWriter::new(uninit);
+
+        for source in source {
+            // SAFETY: The source and iterator have the same length
+            // so if the iterator has more elements, then the writer is
+            // also incomplete
+            unsafe { writer.init_unchecked(source) };
+        }
+
+        // SAFETY: The source and iterator have the same length
+        // so if the iterator has no more elements, then the writer
+        // is complete
         unsafe { writer.finish_unchecked() }
     }
 }
