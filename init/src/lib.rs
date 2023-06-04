@@ -16,6 +16,9 @@ extern crate alloc;
 #[cfg(feature = "std")]
 extern crate std;
 
+#[doc(hidden)]
+pub mod macros;
+
 pub mod interface;
 pub mod layout_provider;
 
