@@ -1,8 +1,9 @@
 //! constructors for slices
 
-use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
+use core::{alloc::Layout, mem::MaybeUninit, pin::Pin, ptr::NonNull};
 
 use crate::{
+    interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider, MaybeLayoutProvider, NoLayoutProvider},
     pin_slice_writer::PinSliceWriter,
     PinCtor,
@@ -201,76 +202,104 @@ where
 {
 }
 
-// SAFETY: The layout is compatible with cast
-unsafe impl<'a, T: PinCtor<&'a T>> MaybeLayoutProvider<[T], &'a [T]> for SliceLenLayoutProvider {
-    fn layout_of(args: &&[T]) -> Option<core::alloc::Layout> {
-        Layout::array::<T>(args.len()).ok()
-    }
+impl<T: PinMoveCtor> PinMoveCtor for [T] {
+    const IS_MOVE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinMoveTag> = {
+        // SAFETY: if T is trivially movable then [T] is also trivially movable
+        unsafe { T::IS_MOVE_TRIVIAL.cast() }
+    };
 
-    unsafe fn cast(ptr: NonNull<u8>, args: &&[T]) -> NonNull<[T]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.len())
+    fn pin_move_ctor<'this>(
+        uninit: crate::Uninit<'this, Self>,
+        p: crate::PinInit<Self>,
+    ) -> crate::PinInit<'this, Self> {
+        if uninit.len() != p.get().len() {
+            length_error(uninit.len(), p.get().len())
+        }
+
+        if T::IS_MOVE_TRIVIAL.get() {
+            // SAFETY: the p was leaked
+            let init = unsafe { uninit.copy_from_slice_unchecked(p.get()) };
+            core::mem::forget(p);
+            init.pin()
+        } else {
+            let mut writer = PinSliceWriter::new(uninit);
+
+            for source in p {
+                // SAFETY: p and the slice have the same length
+                unsafe { writer.pin_init_unchecked(source) }
+            }
+
+            // SAFETY:p and the slice have the same length
+            unsafe { writer.finish_unchecked() }
+        }
     }
 }
 
-impl<'a, T: PinCtor<&'a T>> PinCtor<&'a [T]> for [T] {
-    #[inline]
-    fn pin_init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a [T]) -> crate::PinInit<'u, Self> {
-        if uninit.len() != source.len() {
-            length_error(uninit.len(), source.len())
+impl<T: PinTakeCtor> PinTakeCtor for [T] {
+    const IS_TAKE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinTakeTag> = {
+        // SAFETY: if T is trivially takable then [T] is also trivially takable
+        unsafe { T::IS_TAKE_TRIVIAL.cast() }
+    };
+
+    fn pin_take_ctor<'this>(
+        uninit: crate::Uninit<'this, Self>,
+        p: Pin<&mut Self>,
+    ) -> crate::PinInit<'this, Self> {
+        if uninit.len() != p.len() {
+            length_error(uninit.len(), p.len())
         }
 
-        let mut writer = PinSliceWriter::new(uninit);
+        if T::IS_TAKE_TRIVIAL.get() {
+            // SAFETY: `T::IS_TAKE_TRIVIAL` guarantees that this is safe
+            unsafe { uninit.copy_from_slice_unchecked(&p) }.pin()
+        } else {
+            let mut writer = PinSliceWriter::new(uninit);
 
-        for source in source {
-            // SAFETY: The source and iterator have the same length
-            // so if the iterator has more elements, then the writer is
-            // also incomplete
-            unsafe { writer.pin_init_unchecked(source) };
+            // SAFETY: we don't move the values behind the pointer
+            let p = unsafe { Pin::into_inner_unchecked(p) };
+
+            for source in p {
+                // SAFETY: p and the slice have the same length
+                unsafe { writer.pin_init_unchecked(Pin::new_unchecked(source)) }
+            }
+
+            // SAFETY:p and the slice have the same length
+            unsafe { writer.finish_unchecked() }
         }
-
-        // SAFETY: The source and iterator have the same length
-        // so if the iterator has no more elements, then the writer
-        // is complete
-        unsafe { writer.finish_unchecked() }
     }
 }
 
-// SAFETY: The layout is compatible with cast
-unsafe impl<'a, T: PinCtor<&'a mut T>> MaybeLayoutProvider<[T], &'a mut [T]>
-    for SliceLenLayoutProvider
-{
-    fn layout_of(args: &&mut [T]) -> Option<core::alloc::Layout> {
-        Layout::array::<T>(args.len()).ok()
-    }
+impl<T: PinCloneCtor> PinCloneCtor for [T] {
+    const IS_CLONE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinCloneTag> = {
+        // SAFETY: if T is trivially clone-able then [T] is also trivially clone-able
+        unsafe { T::IS_CLONE_TRIVIAL.cast() }
+    };
 
-    unsafe fn cast(ptr: NonNull<u8>, args: &&mut [T]) -> NonNull<[T]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.len())
-    }
-}
-
-impl<'a, T: PinCtor<&'a mut T>> PinCtor<&'a mut [T]> for [T] {
-    #[inline]
-    fn pin_init<'u>(
-        uninit: crate::Uninit<'u, Self>,
-        source: &'a mut [T],
-    ) -> crate::PinInit<'u, Self> {
-        if uninit.len() != source.len() {
-            length_error(uninit.len(), source.len())
+    fn pin_clone_ctor<'this>(
+        uninit: crate::Uninit<'this, Self>,
+        p: Pin<&Self>,
+    ) -> crate::PinInit<'this, Self> {
+        if uninit.len() != p.len() {
+            length_error(uninit.len(), p.len())
         }
 
-        let mut writer = PinSliceWriter::new(uninit);
+        if T::IS_TAKE_TRIVIAL.get() {
+            // SAFETY: `T::IS_TAKE_TRIVIAL` guarantees that this is safe
+            unsafe { uninit.copy_from_slice_unchecked(&p) }.pin()
+        } else {
+            let mut writer = PinSliceWriter::new(uninit);
 
-        for source in source {
-            // SAFETY: The source and iterator have the same length
-            // so if the iterator has more elements, then the writer is
-            // also incomplete
-            unsafe { writer.pin_init_unchecked(source) };
+            // SAFETY: we don't move the values behind the pointer
+            let p = unsafe { Pin::into_inner_unchecked(p) };
+
+            for source in p {
+                // SAFETY: p and the slice have the same length
+                unsafe { writer.pin_init_unchecked(Pin::new_unchecked(source)) }
+            }
+
+            // SAFETY:p and the slice have the same length
+            unsafe { writer.finish_unchecked() }
         }
-
-        // SAFETY: The source and iterator have the same length
-        // so if the iterator has no more elements, then the writer
-        // is complete
-        unsafe { writer.finish_unchecked() }
     }
 }
 

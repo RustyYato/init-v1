@@ -1,8 +1,9 @@
-// mod iter;
+mod iter;
 mod raw;
 
-// pub use iter::{IterInit, IterUninit};
+use crate::Init;
 pub use crate::Uninit;
+pub use iter::IterPinInit;
 pub use raw::PinInit;
 
 // SAFETY: we only call drop on a `T`, so trivially correct for `may_dangle`
@@ -15,7 +16,7 @@ unsafe impl<#[may_dangle] T: ?Sized> Drop for PinInit<'_, T> {
     }
 }
 
-impl<T: ?Sized> PinInit<'_, T> {
+impl<'a, T: ?Sized> PinInit<'a, T> {
     /// Get a shared reference to `T`
     pub fn get(&self) -> &T {
         // SAFETY: The pointer is aligned, non-null, and initialized
@@ -40,6 +41,26 @@ impl<T: ?Sized> PinInit<'_, T> {
     {
         // SAFETY: Unpin types don't care if they are moved
         unsafe { self.get_mut_unchecked() }
+    }
+
+    /// unwrap the `PinInit`
+    ///
+    /// # Safety
+    ///
+    /// You may not trivially move `T`
+    pub unsafe fn into_inner_unchecked(self) -> Init<'a, T> {
+        // SAFETY: The pointer is aligned, non-null, and initialized
+        // the caller will guarantee that the value isn't moved
+        unsafe { Init::from_raw(self.into_raw()) }
+    }
+
+    /// unwrap the `PinInit`
+    pub fn into_inner(self) -> Init<'a, T>
+    where
+        T: Unpin,
+    {
+        // SAFETY: Unpin types don't care if they are moved
+        unsafe { self.into_inner_unchecked() }
     }
 }
 

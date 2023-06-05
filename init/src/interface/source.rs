@@ -1,10 +1,10 @@
 use core::{alloc::Layout, pin::Pin, ptr::NonNull};
 
-use crate::{CtorArgs, Init, PinInit, Uninit};
+use crate::{CtorArgs, Init, PinCtorArgs, PinInit, Uninit};
 
 use crate::layout_provider::{HasLayoutProvider, MaybeLayoutProvider};
 
-use super::{CloneCtor, MoveCtor, TakeCtor};
+use super::{CloneCtor, MoveCtor, PinCloneCtor, PinMoveCtor, PinTakeCtor, TakeCtor};
 
 /// The layout provider for the `_` argument
 pub struct SourceLayoutProvider;
@@ -106,5 +106,47 @@ unsafe impl<T: ?Sized> MaybeLayoutProvider<T, PinInit<'_, T>> for SourceLayoutPr
     unsafe fn cast(ptr: core::ptr::NonNull<u8>, args: &PinInit<'_, T>) -> core::ptr::NonNull<T> {
         let meta = core::ptr::metadata::<T>(args.get());
         NonNull::from_raw_parts(ptr.cast(), meta)
+    }
+}
+
+impl<T: ?Sized + MoveCtor> CtorArgs<T> for Init<'_, T> {
+    #[inline]
+    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
+        MoveCtor::move_ctor(uninit, self)
+    }
+}
+
+impl<T: ?Sized + TakeCtor> CtorArgs<T> for &mut T {
+    #[inline]
+    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
+        TakeCtor::take_ctor(uninit, self)
+    }
+}
+
+impl<T: ?Sized + CloneCtor> CtorArgs<T> for &T {
+    #[inline]
+    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
+        CloneCtor::clone_ctor(uninit, self)
+    }
+}
+
+impl<T: ?Sized + PinMoveCtor> PinCtorArgs<T> for PinInit<'_, T> {
+    #[inline]
+    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
+        PinMoveCtor::pin_move_ctor(uninit, self)
+    }
+}
+
+impl<T: ?Sized + PinTakeCtor> PinCtorArgs<T> for Pin<&mut T> {
+    #[inline]
+    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
+        PinTakeCtor::pin_take_ctor(uninit, self)
+    }
+}
+
+impl<T: ?Sized + PinCloneCtor> PinCtorArgs<T> for Pin<&T> {
+    #[inline]
+    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
+        PinCloneCtor::pin_clone_ctor(uninit, self)
     }
 }
