@@ -6,6 +6,8 @@ use core::mem::MaybeUninit;
 pub use iter::{IterInit, IterUninit};
 pub use raw::{Init, Uninit};
 
+use crate::PinInit;
+
 // SAFETY: we only call drop on a `T`, so trivially correct for `may_dangle`
 unsafe impl<#[may_dangle] T: ?Sized> Drop for Init<'_, T> {
     fn drop(&mut self) {
@@ -114,6 +116,32 @@ impl<'a, T: Copy> Uninit<'a, [T]> {
 
         // SAFETY: just initialized the pointer ^^^
         unsafe { self.assume_init() }
+    }
+}
+
+impl<'a, T> Init<'a, T> {
+    /// Pin a initialized pointer
+    pub fn pin(this: Self) -> PinInit<'a, T> {
+        // SAFETY: the pointer is:
+        // * aligned
+        // * non-null
+        // * dereferencable (for reads and writes, but reads may yield uninitialized memory)
+        // * initialized for type `T`
+        // * not aliased by any unrelated pointers
+        // `PinInit` will take care of the not-moving gurantee
+        unsafe { PinInit::from_raw(this.into_raw()) }
+    }
+
+    /// Get a shared reference to `T`
+    pub fn get(&self) -> &T {
+        // SAFETY: The pointer is aligned, non-null, and initialized
+        unsafe { &*self.as_ptr() }
+    }
+
+    /// Get a mutable reference to `T`
+    pub fn get_mut(&mut self) -> &mut T {
+        // SAFETY: The pointer is aligned, non-null, and initialized
+        unsafe { &mut *self.as_mut_ptr() }
     }
 }
 

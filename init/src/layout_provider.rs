@@ -46,7 +46,25 @@ where
 /// and that if `Self::layout(ptr, &args)` returns a `Layout`, that
 /// the layout fits the pointer returned by `Self::cast(ptr, &args)`
 /// with the same args
-pub unsafe trait MaybeLayoutProvider<T: ?Sized + Ctor<Args>, Args = ()> {
+pub trait HasLayoutProvider<Args = ()> {
+    /// The layout provider for this constructor
+    type LayoutProvider: MaybeLayoutProvider<Self, Args>;
+}
+
+/// A type which provides the layout information for a given type/ctor argument pair
+///
+/// # Safety
+///
+/// You, the implementor of this trait, must ensure
+///
+/// ```rs
+/// Self::cast(ptr, _).cast::<u8>() == ptr
+/// ```
+///
+/// and that if `Self::layout(ptr, &args)` returns a `Layout`, that
+/// the layout fits the pointer returned by `Self::cast(ptr, &args)`
+/// with the same args
+pub unsafe trait MaybeLayoutProvider<T: ?Sized + HasLayoutProvider<Args>, Args = ()> {
     /// The layout of the type for the given arguments
     fn layout_of(args: &Args) -> Option<Layout>;
 
@@ -66,14 +84,17 @@ pub unsafe trait MaybeLayoutProvider<T: ?Sized + Ctor<Args>, Args = ()> {
 }
 
 /// A type where `MaybeLayoutProvider::layout_of` returns `Some` for some arguments
-pub trait LayoutProvider<T: ?Sized + Ctor<Args>, Args = ()>: MaybeLayoutProvider<T, Args> {}
+pub trait LayoutProvider<T: ?Sized + HasLayoutProvider<Args>, Args = ()>:
+    MaybeLayoutProvider<T, Args>
+{
+}
 
 /// The layout provider for any sized type
 pub struct SizedLayoutProvider;
 
-impl<T: Ctor<Args>, Args> LayoutProvider<T, Args> for SizedLayoutProvider {}
+impl<T: HasLayoutProvider<Args>, Args> LayoutProvider<T, Args> for SizedLayoutProvider {}
 // SAFETY: The layout of a sized type doesn't depend on the argument type
-unsafe impl<T: Ctor<Args>, Args> MaybeLayoutProvider<T, Args> for SizedLayoutProvider {
+unsafe impl<T: HasLayoutProvider<Args>, Args> MaybeLayoutProvider<T, Args> for SizedLayoutProvider {
     #[inline]
     fn layout_of(_: &Args) -> Option<Layout> {
         Some(Layout::new::<T>())
@@ -89,7 +110,9 @@ unsafe impl<T: Ctor<Args>, Args> MaybeLayoutProvider<T, Args> for SizedLayoutPro
 pub struct NoLayoutProvider;
 
 // SAFETY: The layout of a sized type doesn't depend on the argument type
-unsafe impl<T: ?Sized + Ctor<Args>, Args> MaybeLayoutProvider<T, Args> for NoLayoutProvider {
+unsafe impl<T: ?Sized + HasLayoutProvider<Args>, Args> MaybeLayoutProvider<T, Args>
+    for NoLayoutProvider
+{
     #[inline]
     fn layout_of(_: &Args) -> Option<Layout> {
         None

@@ -1,7 +1,7 @@
 use core::alloc::Layout;
 
 use crate::{
-    layout_provider::{LayoutProvider, MaybeLayoutProvider},
+    layout_provider::{HasLayoutProvider, LayoutProvider, MaybeLayoutProvider},
     Ctor,
 };
 
@@ -9,6 +9,10 @@ pub struct ScalarLayoutProvider;
 
 macro_rules! primitive {
     ($($ty:ident $(($zero:expr))?)*) => {$(
+
+        impl HasLayoutProvider for $ty {
+            type LayoutProvider = ScalarLayoutProvider;
+        }
 
         impl LayoutProvider<$ty> for ScalarLayoutProvider {}
         // SAFETY: sized types have a known layout
@@ -27,6 +31,10 @@ macro_rules! primitive {
             fn is_zeroed(_: &()) -> bool {
                 true
             }
+        }
+
+        impl HasLayoutProvider<$ty> for $ty {
+            type LayoutProvider = ScalarLayoutProvider;
         }
 
         impl LayoutProvider<$ty, $ty> for ScalarLayoutProvider {}
@@ -50,6 +58,10 @@ macro_rules! primitive {
             }
         }
 
+        impl HasLayoutProvider<&$ty> for $ty {
+            type LayoutProvider = ScalarLayoutProvider;
+        }
+
         impl LayoutProvider<$ty, &$ty> for ScalarLayoutProvider {}
         // SAFETY: sized types have a known layout
         unsafe impl MaybeLayoutProvider<$ty, &$ty> for ScalarLayoutProvider {
@@ -69,6 +81,10 @@ macro_rules! primitive {
                 $(let _value = $zero;)?
                 **arg == _value
             }
+        }
+
+        impl HasLayoutProvider<&mut $ty> for $ty {
+            type LayoutProvider = ScalarLayoutProvider;
         }
 
         impl LayoutProvider<$ty, &mut $ty> for ScalarLayoutProvider {}
@@ -93,8 +109,6 @@ macro_rules! primitive {
         }
 
         impl Ctor for $ty {
-            type LayoutProvider = ScalarLayoutProvider;
-
             #[inline]
             fn init(uninit: crate::Uninit<'_, Self>, (): ()) -> crate::Init<'_, Self> {
                 let _value = 0;
@@ -110,8 +124,6 @@ macro_rules! primitive {
         }
 
         impl Ctor<$ty> for $ty {
-            type LayoutProvider = ScalarLayoutProvider;
-
             #[inline]
             fn init(uninit: crate::Uninit<'_, Self>, arg: $ty) -> crate::Init<'_, Self> {
                 uninit.write(arg)
@@ -125,8 +137,6 @@ macro_rules! primitive {
         }
 
         impl Ctor<&$ty> for $ty {
-            type LayoutProvider = ScalarLayoutProvider;
-
             #[inline]
             fn init<'a>(uninit: crate::Uninit<'a, Self>, arg: &$ty) -> crate::Init<'a, Self> {
                 uninit.write(*arg)
@@ -140,8 +150,6 @@ macro_rules! primitive {
         }
 
         impl Ctor<&mut $ty> for $ty {
-            type LayoutProvider = ScalarLayoutProvider;
-
             #[inline]
             fn init<'a>(uninit: crate::Uninit<'a, Self>, arg: &mut $ty) -> crate::Init<'a, Self> {
                 uninit.write(*arg)
@@ -153,6 +161,10 @@ macro_rules! primitive {
 primitive!(u8 u16 u32 u64 u128 usize);
 primitive!(i8 i16 i32 i64 i128 isize);
 primitive!(f32(0.0) f64(0.0) bool(false) char('\0'));
+
+impl HasLayoutProvider for () {
+    type LayoutProvider = ScalarLayoutProvider;
+}
 
 // SAFETY: sized types have a known layout
 unsafe impl MaybeLayoutProvider<()> for ScalarLayoutProvider {
@@ -173,8 +185,6 @@ unsafe impl MaybeLayoutProvider<()> for ScalarLayoutProvider {
 }
 
 impl Ctor for () {
-    type LayoutProvider = ScalarLayoutProvider;
-
     #[inline]
     fn init(uninit: crate::Uninit<'_, Self>, (): ()) -> crate::Init<'_, Self> {
         uninit.write(())

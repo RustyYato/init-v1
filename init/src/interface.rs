@@ -3,15 +3,12 @@
 use core::mem::MaybeUninit;
 
 use crate::{
-    layout_provider::{MaybeLayoutProvider, NoLayoutProvider, SizedLayoutProvider},
+    layout_provider::{HasLayoutProvider, NoLayoutProvider, SizedLayoutProvider},
     Init, Uninit,
 };
 
 /// A type which is constructable using `Args`
-pub trait Ctor<Args = ()> {
-    /// The layout provider for this constructor
-    type LayoutProvider: MaybeLayoutProvider<Self, Args>;
-
+pub trait Ctor<Args = ()>: HasLayoutProvider<Args> {
     /// Initialize a the type `Self` using `args: Args`
     fn init(uninit: Uninit<'_, Self>, args: Args) -> Init<'_, Self>;
 
@@ -23,35 +20,34 @@ pub trait Ctor<Args = ()> {
 }
 
 /// A type which can construct a `T`
-pub trait CtorArgs<T: ?Sized>: Sized {
-    /// The layout provider for this constructor
-    type LayoutProvider: MaybeLayoutProvider<T, Self>;
-
+pub trait CtorArgs<T: ?Sized + HasLayoutProvider<Self>>: Sized {
     /// Initialize a the type `T` using `self`
     fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T>;
 }
 
-impl<T: ?Sized, Args: CtorArgs<T>> Ctor<Args> for T {
-    type LayoutProvider = Args::LayoutProvider;
-
+impl<T: ?Sized + HasLayoutProvider<Args>, Args: CtorArgs<T>> Ctor<Args> for T {
     #[inline]
     fn init(uninit: Uninit<'_, Self>, args: Args) -> Init<'_, Self> {
         args.init_with(uninit)
     }
 }
 
-impl<T> Ctor for MaybeUninit<T> {
+impl<T> HasLayoutProvider for MaybeUninit<T> {
     type LayoutProvider = SizedLayoutProvider;
+}
 
+impl<T> Ctor for MaybeUninit<T> {
     #[inline]
     fn init(uninit: Uninit<'_, Self>, (): ()) -> Init<'_, Self> {
         uninit.uninit()
     }
 }
 
-impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Init<'_, T>> CtorArgs<T> for F {
+impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Init<'_, T>> HasLayoutProvider<F> for T {
     type LayoutProvider = NoLayoutProvider;
+}
 
+impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Init<'_, T>> CtorArgs<T> for F {
     #[inline]
     fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
         self(uninit)
