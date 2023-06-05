@@ -1,6 +1,7 @@
-use core::alloc::Layout;
+use core::{alloc::Layout, pin::Pin};
 
 use crate::{
+    interface::{CloneCtor, MoveCtor, PinCloneCtor, PinMoveCtor, PinTakeCtor, TakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider, MaybeLayoutProvider},
     Ctor,
 };
@@ -136,23 +137,89 @@ macro_rules! primitive {
             }
         }
 
-        impl Ctor<&$ty> for $ty {
+        impl MoveCtor for $ty {
+            const IS_MOVE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::MoveTag> = {
+                // SAFETY: all primitive types are trivially movable
+                unsafe { crate::interface::ConfigValue::yes() }
+            };
             #[inline]
-            fn init<'a>(uninit: crate::Uninit<'a, Self>, arg: &$ty) -> crate::Init<'a, Self> {
-                uninit.write(*arg)
-            }
-
-            #[inline]
-            #[doc(hidden)]
-            fn __is_args_clone_cheap() -> bool {
-                true
+            fn move_ctor<'this>(
+                uninit: crate::Uninit<'this, Self>,
+                p: crate::Init<Self>,
+            ) -> crate::Init<'this, Self> {
+                uninit.write(*p.get())
             }
         }
 
-        impl Ctor<&mut $ty> for $ty {
+        impl TakeCtor for $ty {
+            const IS_TAKE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::TakeTag> = {
+                // SAFETY: all primitive types are trivially takable
+                unsafe { crate::interface::ConfigValue::yes() }
+            };
+
             #[inline]
-            fn init<'a>(uninit: crate::Uninit<'a, Self>, arg: &mut $ty) -> crate::Init<'a, Self> {
-                uninit.write(*arg)
+            fn take_ctor<'this>(
+                uninit: crate::Uninit<'this, Self>,
+                p: &mut Self,
+            ) -> crate::Init<'this, Self> {
+                uninit.write(*p)
+            }
+        }
+
+        impl CloneCtor for $ty {
+            const IS_CLONE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::CloneTag> = {
+                // SAFETY: all primitive types are trivially clone-able
+                unsafe { crate::interface::ConfigValue::yes() }
+            };
+
+            #[inline]
+            fn clone_ctor<'this>(uninit: crate::Uninit<'this, Self>, p: &Self) -> crate::Init<'this, Self> {
+                uninit.write(*p)
+            }
+        }
+
+        impl PinMoveCtor for $ty {
+            const IS_MOVE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinMoveTag> = {
+                // SAFETY: all primitive types are trivially movable
+                unsafe { crate::interface::ConfigValue::yes() }
+            };
+
+            #[inline]
+            fn pin_move_ctor<'this>(
+                uninit: crate::Uninit<'this, Self>,
+                p: crate::PinInit<Self>,
+            ) -> crate::PinInit<'this, Self> {
+                uninit.write(*p.get()).pin()
+            }
+        }
+
+        impl PinTakeCtor for $ty {
+            const IS_TAKE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinTakeTag> = {
+                // SAFETY: all primitive types are trivially takable
+                unsafe { crate::interface::ConfigValue::yes() }
+            };
+
+            #[inline]
+            fn pin_take_ctor<'this>(
+                uninit: crate::Uninit<'this, Self>,
+                p: Pin<&mut Self>,
+            ) -> crate::PinInit<'this, Self> {
+                uninit.write(*p).pin()
+            }
+        }
+
+        impl PinCloneCtor for $ty {
+            const IS_CLONE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinCloneTag> = {
+                // SAFETY: all primitive types are trivially clone-able
+                unsafe { crate::interface::ConfigValue::yes() }
+            };
+
+            #[inline]
+            fn pin_clone_ctor<'this>(
+                uninit: crate::Uninit<'this, Self>,
+                p: Pin<&Self>,
+            ) -> crate::PinInit<'this, Self> {
+                uninit.write(*p).pin()
             }
         }
     )*};
