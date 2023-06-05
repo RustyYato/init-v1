@@ -19,17 +19,30 @@ pub struct ThinBox<T: ?Sized> {
     ty: PhantomData<T>,
 }
 
+struct RawThinBox {
+    ptr: *mut (),
+    layout: Layout,
+}
+
+impl Drop for RawThinBox {
+    fn drop(&mut self) {
+        // SAFETY: the pointer is valid and allocated by the global allocator
+        unsafe { alloc::alloc::dealloc(self.ptr.cast(), self.layout) }
+    }
+}
+
 impl<T: ?Sized> Drop for ThinBox<T> {
     fn drop(&mut self) {
         // SAFETY: the pointer is valid, allocated, and initialized
-        let (ptr, layout) = unsafe {
+        unsafe {
             let ptr = self.ptr.as_mut_with_header_ptr();
             let layout = Layout::for_value(&*ptr);
+            let _alloc = RawThinBox {
+                ptr: ptr.cast(),
+                layout,
+            };
             ptr.drop_in_place();
-            (ptr, layout)
-        };
-        // SAFETY: the pointer is valid and allocated by the global allocator
-        unsafe { alloc::alloc::dealloc(ptr.cast(), layout) }
+        }
     }
 }
 

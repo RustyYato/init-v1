@@ -29,8 +29,10 @@ impl<T: ?Sized, M> Clone for RawThinPtr<T, M> {
 /// A type which stores the pointer metadata inline with the data, instead of alongside the pointer
 #[repr(C)]
 pub struct WithHeader<T: ?Sized, M = Metadata<T>> {
-    metadata: M,
-    value: T,
+    /// The metadata of type `T`
+    pub metadata: M,
+    /// The value
+    pub value: T,
 }
 
 /// A constructor for `WithHeader`
@@ -99,7 +101,7 @@ impl<T: ?Sized> RawThinPtr<T> {
     /// Note: to safely call any function on this `RawThinPtr` marked unsafe
     /// you must ensure that the `RawThinPtr` does not outlive the `Init` ptr's
     /// original lifetime
-    pub fn from_raw(ptr: NonNull<WithHeader<T>>) -> Self {
+    pub const fn from_raw(ptr: NonNull<WithHeader<T>>) -> Self {
         Self {
             // SAFETY: guaranteed by caller
             raw: ptr.cast(),
@@ -149,6 +151,18 @@ impl<T: ?Sized> RawThinPtr<T> {
         let metadata = unsafe { self.metadata() };
         let ptr = core::ptr::from_raw_parts_mut::<T>(self.raw.as_ptr(), metadata);
         ptr as *mut WithHeader<T>
+    }
+
+    /// Get a read-only pointer to the underlying data
+    pub fn as_erased_ptr(self) -> *const () {
+        // SAFETY: Guaranteed by caller
+        self.raw.as_ptr()
+    }
+
+    /// Get a mutable pointer to the underlying data
+    pub fn as_erased_mut_ptr(self) -> *mut () {
+        // SAFETY: Guaranteed by caller
+        self.raw.as_ptr()
     }
 }
 
