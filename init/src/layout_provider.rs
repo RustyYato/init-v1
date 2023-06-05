@@ -2,12 +2,10 @@
 
 use core::{alloc::Layout, ptr::NonNull};
 
-use crate::Ctor;
-
 /// see [`MaybeLayoutProvider::layout_of`]
 pub fn layout_of<T, Args>(args: &Args) -> Option<Layout>
 where
-    T: ?Sized + Ctor<Args>,
+    T: ?Sized + HasLayoutProvider<Args>,
 {
     <T::LayoutProvider as MaybeLayoutProvider<T, Args>>::layout_of(args)
 }
@@ -19,7 +17,7 @@ where
 /// `layout_of` must return a layout for the given arguments
 pub unsafe fn cast<T, Args>(ptr: NonNull<u8>, args: &Args) -> NonNull<T>
 where
-    T: ?Sized + Ctor<Args>,
+    T: ?Sized + HasLayoutProvider<Args>,
 {
     // SAFETY: guaranteed by caller
     unsafe { <T::LayoutProvider as MaybeLayoutProvider<T, Args>>::cast(ptr, args) }
@@ -28,7 +26,7 @@ where
 /// see [`MaybeLayoutProvider::is_zeroed`]
 pub fn is_zeroed<T, Args>(args: &Args) -> bool
 where
-    T: ?Sized + Ctor<Args>,
+    T: ?Sized + HasLayoutProvider<Args>,
 {
     <T::LayoutProvider as MaybeLayoutProvider<T, Args>>::is_zeroed(args)
 }

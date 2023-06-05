@@ -38,6 +38,14 @@ impl<'a, T: ?Sized> Uninit<'a, T> {
     {
         crate::Ctor::init(self, args)
     }
+
+    /// Initialize self using a constructor
+    pub fn pin_init<Args>(self, args: Args) -> PinInit<'a, T>
+    where
+        T: crate::PinCtor<Args>,
+    {
+        crate::PinCtor::pin_init(self, args)
+    }
 }
 
 impl<'a, T> Uninit<'a, T> {
@@ -119,9 +127,9 @@ impl<'a, T: Copy> Uninit<'a, [T]> {
     }
 }
 
-impl<'a, T> Init<'a, T> {
+impl<'a, T: ?Sized> Init<'a, T> {
     /// Pin a initialized pointer
-    pub fn pin(this: Self) -> PinInit<'a, T> {
+    pub fn pin(self) -> PinInit<'a, T> {
         // SAFETY: the pointer is:
         // * aligned
         // * non-null
@@ -129,7 +137,7 @@ impl<'a, T> Init<'a, T> {
         // * initialized for type `T`
         // * not aliased by any unrelated pointers
         // `PinInit` will take care of the not-moving gurantee
-        unsafe { PinInit::from_raw(this.into_raw()) }
+        unsafe { PinInit::from_raw(self.into_raw()) }
     }
 
     /// Get a shared reference to `T`

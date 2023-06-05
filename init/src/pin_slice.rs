@@ -1,25 +1,21 @@
-//! Constructors for slices
+//! ConstruPinCtors for slices
 
 use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
     layout_provider::{HasLayoutProvider, LayoutProvider, MaybeLayoutProvider, NoLayoutProvider},
-    slice_writer::SliceWriter,
-    Ctor,
+    pin_slice_writer::PinSliceWriter,
+    PinCtor,
 };
 
-impl<T> HasLayoutProvider for [T] {
-    type LayoutProvider = NoLayoutProvider;
-}
-
-impl<T: Ctor> Ctor for [T] {
+impl<T: PinCtor> PinCtor for [T] {
     #[inline]
-    fn init(uninit: crate::Uninit<'_, Self>, (): ()) -> crate::Init<'_, Self> {
-        uninit.init(CopyArgs(()))
+    fn pin_init(uninit: crate::Uninit<'_, Self>, (): ()) -> crate::PinInit<'_, Self> {
+        uninit.pin_init(CopyArgs(()))
     }
 }
 
-/// A slice constructor which clones the argument and uses it to construct each element of the slice
+/// A slice construPinCtor which clones the argument and uses it to construct each element of the slice
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct UninitSliceLen(pub usize);
@@ -39,32 +35,32 @@ unsafe impl<T> MaybeLayoutProvider<[MaybeUninit<T>], UninitSliceLen> for SliceLe
     }
 }
 
-impl<T> Ctor<UninitSliceLen> for [MaybeUninit<T>] {
-    fn init(uninit: crate::Uninit<'_, Self>, _: UninitSliceLen) -> crate::Init<'_, Self> {
-        uninit.uninit_slice()
+impl<T> PinCtor<UninitSliceLen> for [MaybeUninit<T>] {
+    fn pin_init(uninit: crate::Uninit<'_, Self>, _: UninitSliceLen) -> crate::PinInit<'_, Self> {
+        uninit.uninit_slice().pin()
     }
 }
 
-/// A slice constructor which copies the argument and uses it to construct each element of the slice
+/// A slice construPinCtor which copies the argument and uses it to construct each element of the slice
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgs<Args>(pub Args);
 
-impl<T: Ctor<Args>, Args> HasLayoutProvider<CopyArgs<Args>> for [T] {
+impl<T: PinCtor<Args>, Args> HasLayoutProvider<CopyArgs<Args>> for [T] {
     type LayoutProvider = NoLayoutProvider;
 }
 
-impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
+impl<T: PinCtor<Args>, Args: Copy> PinCtor<CopyArgs<Args>> for [T] {
     #[inline]
-    fn init(
+    fn pin_init(
         uninit: crate::Uninit<'_, Self>,
         CopyArgs(args): CopyArgs<Args>,
-    ) -> crate::Init<'_, Self> {
-        let mut writer = SliceWriter::new(uninit);
+    ) -> crate::PinInit<'_, Self> {
+        let mut writer = PinSliceWriter::new(uninit);
 
         while !writer.is_complete() {
             // SAFETY: The write isn't complete
-            unsafe { writer.init_unchecked(args) }
+            unsafe { writer.pin_init_unchecked(args) }
         }
 
         // SAFETY: the writer is complete
@@ -72,37 +68,37 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
     }
 }
 
-/// A slice constructor which clones the argument and uses it to construct each element of the slice
+/// A slice construPinCtor which clones the argument and uses it to construct each element of the slice
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgs<Args>(pub Args);
 
-impl<T: Ctor<Args>, Args: Clone> HasLayoutProvider<CloneArgs<Args>> for [T] {
+impl<T: PinCtor<Args>, Args: Clone> HasLayoutProvider<CloneArgs<Args>> for [T] {
     type LayoutProvider = NoLayoutProvider;
 }
 
-impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
+impl<T: PinCtor<Args>, Args: Clone> PinCtor<CloneArgs<Args>> for [T] {
     #[inline]
-    fn init(
+    fn pin_init(
         uninit: crate::Uninit<'_, Self>,
         CloneArgs(args): CloneArgs<Args>,
-    ) -> crate::Init<'_, Self> {
-        let mut writer = SliceWriter::new(uninit);
+    ) -> crate::PinInit<'_, Self> {
+        let mut writer = PinSliceWriter::new(uninit);
 
         if T::__is_args_clone_cheap() {
             while !writer.is_complete() {
                 // SAFETY: The write isn't complete
-                unsafe { writer.init_unchecked(args.clone()) }
+                unsafe { writer.pin_init_unchecked(args.clone()) }
             }
         } else {
             loop {
                 match writer.remaining_len() {
                     0 => break,
                     1 => {
-                        writer.init(args);
+                        writer.pin_init(args);
                         break;
                     }
-                    _ => writer.init(args.clone()),
+                    _ => writer.pin_init(args.clone()),
                 }
             }
         }
@@ -111,18 +107,18 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
     }
 }
 
-/// A slice constructor which copies the argument and uses it to construct each element of the slice
+/// A slice construPinCtor which copies the argument and uses it to construct each element of the slice
 ///
 /// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgsLen<Args>(pub usize, pub Args);
 
-impl<T: Ctor<Args>, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T] {
+impl<T: PinCtor<Args>, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T] {
     type LayoutProvider = SliceLenLayoutProvider;
 }
 
 // SAFETY: The layout is compatible with cast
-unsafe impl<T: Ctor<Args>, Args: Copy> MaybeLayoutProvider<[T], CopyArgsLen<Args>>
+unsafe impl<T: PinCtor<Args>, Args: Copy> MaybeLayoutProvider<[T], CopyArgsLen<Args>>
     for SliceLenLayoutProvider
 {
     fn layout_of(args: &CopyArgsLen<Args>) -> Option<Layout> {
@@ -138,28 +134,28 @@ unsafe impl<T: Ctor<Args>, Args: Copy> MaybeLayoutProvider<[T], CopyArgsLen<Args
     }
 }
 
-impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgsLen<Args>> for [T] {
+impl<T: PinCtor<Args>, Args: Copy> PinCtor<CopyArgsLen<Args>> for [T] {
     #[inline]
-    fn init(
+    fn pin_init(
         uninit: crate::Uninit<'_, Self>,
         CopyArgsLen(_, args): CopyArgsLen<Args>,
-    ) -> crate::Init<'_, Self> {
-        uninit.init(CopyArgs(args))
+    ) -> crate::PinInit<'_, Self> {
+        uninit.pin_init(CopyArgs(args))
     }
 }
 
-/// A slice constructor which clones the argument and uses it to construct each element of the slice
+/// A slice construPinCtor which clones the argument and uses it to construct each element of the slice
 ///
 /// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgsLen<Args>(pub usize, pub Args);
 
-impl<T: Ctor<Args>, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T] {
+impl<T: PinCtor<Args>, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T] {
     type LayoutProvider = SliceLenLayoutProvider;
 }
 
 // SAFETY: The layout is compatible with cast
-unsafe impl<T: Ctor<Args>, Args: Clone> MaybeLayoutProvider<[T], CloneArgsLen<Args>>
+unsafe impl<T: PinCtor<Args>, Args: Clone> MaybeLayoutProvider<[T], CloneArgsLen<Args>>
     for SliceLenLayoutProvider
 {
     fn layout_of(args: &CloneArgsLen<Args>) -> Option<Layout> {
@@ -175,13 +171,13 @@ unsafe impl<T: Ctor<Args>, Args: Clone> MaybeLayoutProvider<[T], CloneArgsLen<Ar
     }
 }
 
-impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgsLen<Args>> for [T] {
+impl<T: PinCtor<Args>, Args: Clone> PinCtor<CloneArgsLen<Args>> for [T] {
     #[inline]
-    fn init(
+    fn pin_init(
         uninit: crate::Uninit<'_, Self>,
         CloneArgsLen(_, args): CloneArgsLen<Args>,
-    ) -> crate::Init<'_, Self> {
-        uninit.init(CloneArgs(args))
+    ) -> crate::PinInit<'_, Self> {
+        uninit.pin_init(CloneArgs(args))
     }
 }
 
@@ -191,16 +187,12 @@ pub struct SliceLenLayoutProvider;
 impl<T, Args> LayoutProvider<[T], Args> for SliceLenLayoutProvider
 where
     Self: MaybeLayoutProvider<[T], Args>,
-    [T]: Ctor<Args>,
+    [T]: PinCtor<Args>,
 {
 }
 
-impl<T> HasLayoutProvider<&[T]> for [T] {
-    type LayoutProvider = SliceLenLayoutProvider;
-}
-
 // SAFETY: The layout is compatible with cast
-unsafe impl<'a, T> MaybeLayoutProvider<[T], &'a [T]> for SliceLenLayoutProvider {
+unsafe impl<'a, T: PinCtor<&'a T>> MaybeLayoutProvider<[T], &'a [T]> for SliceLenLayoutProvider {
     fn layout_of(args: &&[T]) -> Option<core::alloc::Layout> {
         Layout::array::<T>(args.len()).ok()
     }
@@ -210,20 +202,20 @@ unsafe impl<'a, T> MaybeLayoutProvider<[T], &'a [T]> for SliceLenLayoutProvider 
     }
 }
 
-impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
+impl<'a, T: PinCtor<&'a T>> PinCtor<&'a [T]> for [T] {
     #[inline]
-    fn init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a [T]) -> crate::Init<'u, Self> {
+    fn pin_init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a [T]) -> crate::PinInit<'u, Self> {
         if uninit.len() != source.len() {
             length_error(uninit.len(), source.len())
         }
 
-        let mut writer = SliceWriter::new(uninit);
+        let mut writer = PinSliceWriter::new(uninit);
 
         for source in source {
             // SAFETY: The source and iterator have the same length
             // so if the iterator has more elements, then the writer is
             // also incomplete
-            unsafe { writer.init_unchecked(source) };
+            unsafe { writer.pin_init_unchecked(source) };
         }
 
         // SAFETY: The source and iterator have the same length
@@ -233,12 +225,10 @@ impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
     }
 }
 
-impl<T> HasLayoutProvider<&mut [T]> for [T] {
-    type LayoutProvider = SliceLenLayoutProvider;
-}
-
 // SAFETY: The layout is compatible with cast
-unsafe impl<'a, T> MaybeLayoutProvider<[T], &'a mut [T]> for SliceLenLayoutProvider {
+unsafe impl<'a, T: PinCtor<&'a mut T>> MaybeLayoutProvider<[T], &'a mut [T]>
+    for SliceLenLayoutProvider
+{
     fn layout_of(args: &&mut [T]) -> Option<core::alloc::Layout> {
         Layout::array::<T>(args.len()).ok()
     }
@@ -248,20 +238,23 @@ unsafe impl<'a, T> MaybeLayoutProvider<[T], &'a mut [T]> for SliceLenLayoutProvi
     }
 }
 
-impl<'a, T: Ctor<&'a mut T>> Ctor<&'a mut [T]> for [T] {
+impl<'a, T: PinCtor<&'a mut T>> PinCtor<&'a mut [T]> for [T] {
     #[inline]
-    fn init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a mut [T]) -> crate::Init<'u, Self> {
+    fn pin_init<'u>(
+        uninit: crate::Uninit<'u, Self>,
+        source: &'a mut [T],
+    ) -> crate::PinInit<'u, Self> {
         if uninit.len() != source.len() {
             length_error(uninit.len(), source.len())
         }
 
-        let mut writer = SliceWriter::new(uninit);
+        let mut writer = PinSliceWriter::new(uninit);
 
         for source in source {
             // SAFETY: The source and iterator have the same length
             // so if the iterator has more elements, then the writer is
             // also incomplete
-            unsafe { writer.init_unchecked(source) };
+            unsafe { writer.pin_init_unchecked(source) };
         }
 
         // SAFETY: The source and iterator have the same length

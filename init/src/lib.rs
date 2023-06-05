@@ -23,13 +23,17 @@ pub mod interface;
 pub mod layout_provider;
 
 mod ext;
+mod pin_ptr;
+pub mod pin_slice_writer;
 mod ptr;
 pub mod slice_writer;
 
 #[cfg(feature = "alloc")]
 pub mod boxed;
 mod hacks;
+pub mod pin_slice;
 pub mod slice;
 
-pub use interface::{ctor, Ctor, CtorArgs};
+pub use interface::{ctor, pin_ctor, Ctor, CtorArgs, PinCtor, PinCtorArgs};
+pub use pin_ptr::PinInit;
 pub use ptr::{Init, Uninit};
