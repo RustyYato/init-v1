@@ -3,13 +3,14 @@
 use core::{
     alloc::Layout,
     marker::PhantomData,
+    mem::ManuallyDrop,
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
 
 use init::{layout_provider::LayoutProvider, Ctor};
 
-use crate::ptr::{PushHeader, RawThinPtr, WithHeader};
+use crate::ptr::{Metadata, PushHeader, RawThinPtr, WithHeader};
 
 /// A type that's like a `Box` mut guaranteed to be the same representation as a `*mut ()`
 #[repr(transparent)]
@@ -54,13 +55,37 @@ impl<T: ?Sized> ThinBox<T> {
 impl<T> ThinBox<[T]> {
     /// Get the length of the slice
     pub fn len(&self) -> usize {
-        // SAFETY: This pointer is valid, allocated, and initialized
-        unsafe { self.ptr.metadata() }
+        self.metadata()
     }
 
     /// Get the length of the slice
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+impl<T: ?Sized> ThinBox<T> {
+    /// Get the length of the slice
+    pub fn as_ptr(&self) -> *const T {
+        // SAFETY: This pointer is valid, allocated, and initialized
+        unsafe { self.ptr.as_ptr() }
+    }
+
+    /// Get the length of the slice
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        // SAFETY: This pointer is valid, allocated, and initialized
+        unsafe { self.ptr.as_mut_ptr() }
+    }
+
+    /// Get the length of the slice
+    pub fn into_raw(self) -> RawThinPtr<T> {
+        ManuallyDrop::new(self).ptr
+    }
+
+    /// Get the length of the slice
+    pub fn metadata(&self) -> Metadata<T> {
+        // SAFETY: This pointer is valid, allocated, and initialized
+        unsafe { self.ptr.metadata() }
     }
 }
 
