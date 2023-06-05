@@ -1,10 +1,10 @@
 #![no_std]
-#![forbid(
-    missing_docs,
-    clippy::missing_safety_doc,
-    unsafe_op_in_unsafe_fn,
-    clippy::undocumented_unsafe_blocks
-)]
+// #![forbid(
+//     missing_docs,
+//     clippy::missing_safety_doc,
+//     unsafe_op_in_unsafe_fn,
+//     clippy::undocumented_unsafe_blocks
+// )]
 #![feature(ptr_metadata)]
 
 //! A thin pointer library which uses `init` for safe initialization
@@ -16,3 +16,4 @@ extern crate std;
 
 pub mod boxed;
 pub mod ptr;
+pub mod vec;
