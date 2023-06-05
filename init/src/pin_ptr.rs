@@ -15,7 +15,7 @@ unsafe impl<#[may_dangle] T: ?Sized> Drop for PinInit<'_, T> {
     }
 }
 
-impl<T> PinInit<'_, T> {
+impl<T: ?Sized> PinInit<'_, T> {
     /// Get a shared reference to `T`
     pub fn get(&self) -> &T {
         // SAFETY: The pointer is aligned, non-null, and initialized

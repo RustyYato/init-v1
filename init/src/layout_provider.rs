@@ -44,7 +44,7 @@ where
 /// and that if `Self::layout(ptr, &args)` returns a `Layout`, that
 /// the layout fits the pointer returned by `Self::cast(ptr, &args)`
 /// with the same args
-pub trait HasLayoutProvider<Args = ()> {
+pub trait HasLayoutProvider<Args: ?Sized = ()> {
     /// The layout provider for this constructor
     type LayoutProvider: MaybeLayoutProvider<Self, Args>;
 }
@@ -62,7 +62,7 @@ pub trait HasLayoutProvider<Args = ()> {
 /// and that if `Self::layout(ptr, &args)` returns a `Layout`, that
 /// the layout fits the pointer returned by `Self::cast(ptr, &args)`
 /// with the same args
-pub unsafe trait MaybeLayoutProvider<T: ?Sized + HasLayoutProvider<Args>, Args = ()> {
+pub unsafe trait MaybeLayoutProvider<T: ?Sized + HasLayoutProvider<Args>, Args: ?Sized = ()> {
     /// The layout of the type for the given arguments
     fn layout_of(args: &Args) -> Option<Layout>;
 
@@ -82,7 +82,7 @@ pub unsafe trait MaybeLayoutProvider<T: ?Sized + HasLayoutProvider<Args>, Args =
 }
 
 /// A type where `MaybeLayoutProvider::layout_of` returns `Some` for some arguments
-pub trait LayoutProvider<T: ?Sized + HasLayoutProvider<Args>, Args = ()>:
+pub trait LayoutProvider<T: ?Sized + HasLayoutProvider<Args>, Args: ?Sized = ()>:
     MaybeLayoutProvider<T, Args>
 {
 }

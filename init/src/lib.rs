@@ -5,7 +5,7 @@
     unsafe_op_in_unsafe_fn,
     clippy::undocumented_unsafe_blocks
 )]
-#![feature(dropck_eyepatch)]
+#![feature(dropck_eyepatch, ptr_metadata)]
 
 //! ## init
 //!
