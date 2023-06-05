@@ -117,13 +117,18 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgsLen<Args>(pub usize, pub Args);
 
-impl<T: Ctor<Args>, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T] {
+impl<T: Ctor<Args>, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T]
+where
+    T: HasLayoutProvider<Args>,
+{
     type LayoutProvider = SliceLenLayoutProvider;
 }
 
 // SAFETY: The layout is compatible with cast
 unsafe impl<T: Ctor<Args>, Args: Copy> MaybeLayoutProvider<[T], CopyArgsLen<Args>>
     for SliceLenLayoutProvider
+where
+    T: HasLayoutProvider<Args>,
 {
     fn layout_of(args: &CopyArgsLen<Args>) -> Option<Layout> {
         Layout::array::<T>(args.0).ok()
@@ -154,13 +159,18 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgsLen<Args>> for [T] {
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgsLen<Args>(pub usize, pub Args);
 
-impl<T: Ctor<Args>, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T] {
+impl<T: Ctor<Args>, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T]
+where
+    T: HasLayoutProvider<Args>,
+{
     type LayoutProvider = SliceLenLayoutProvider;
 }
 
 // SAFETY: The layout is compatible with cast
 unsafe impl<T: Ctor<Args>, Args: Clone> MaybeLayoutProvider<[T], CloneArgsLen<Args>>
     for SliceLenLayoutProvider
+where
+    T: HasLayoutProvider<Args>,
 {
     fn layout_of(args: &CloneArgsLen<Args>) -> Option<Layout> {
         Layout::array::<T>(args.0).ok()
@@ -195,21 +205,6 @@ where
 {
 }
 
-impl<T> HasLayoutProvider<&[T]> for [T] {
-    type LayoutProvider = SliceLenLayoutProvider;
-}
-
-// SAFETY: The layout is compatible with cast
-unsafe impl<'a, T> MaybeLayoutProvider<[T], &'a [T]> for SliceLenLayoutProvider {
-    fn layout_of(args: &&[T]) -> Option<core::alloc::Layout> {
-        Layout::array::<T>(args.len()).ok()
-    }
-
-    unsafe fn cast(ptr: NonNull<u8>, args: &&[T]) -> NonNull<[T]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.len())
-    }
-}
-
 impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
     #[inline]
     fn init<'u>(uninit: crate::Uninit<'u, Self>, source: &'a [T]) -> crate::Init<'u, Self> {
@@ -230,21 +225,6 @@ impl<'a, T: Ctor<&'a T>> Ctor<&'a [T]> for [T] {
         // so if the iterator has no more elements, then the writer
         // is complete
         unsafe { writer.finish_unchecked() }
-    }
-}
-
-impl<T> HasLayoutProvider<&mut [T]> for [T] {
-    type LayoutProvider = SliceLenLayoutProvider;
-}
-
-// SAFETY: The layout is compatible with cast
-unsafe impl<'a, T> MaybeLayoutProvider<[T], &'a mut [T]> for SliceLenLayoutProvider {
-    fn layout_of(args: &&mut [T]) -> Option<core::alloc::Layout> {
-        Layout::array::<T>(args.len()).ok()
-    }
-
-    unsafe fn cast(ptr: NonNull<u8>, args: &&mut [T]) -> NonNull<[T]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.len())
     }
 }
 

@@ -1,4 +1,4 @@
-//! ConstruPinCtors for slices
+//! constructors for slices
 
 use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
@@ -15,7 +15,7 @@ impl<T: PinCtor> PinCtor for [T] {
     }
 }
 
-/// A slice construPinCtor which clones the argument and uses it to construct each element of the slice
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct UninitSliceLen(pub usize);
@@ -41,7 +41,7 @@ impl<T> PinCtor<UninitSliceLen> for [MaybeUninit<T>] {
     }
 }
 
-/// A slice construPinCtor which copies the argument and uses it to construct each element of the slice
+/// A slice constructor which copies the argument and uses it to construct each element of the slice
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgs<Args>(pub Args);
@@ -68,7 +68,7 @@ impl<T: PinCtor<Args>, Args: Copy> PinCtor<CopyArgs<Args>> for [T] {
     }
 }
 
-/// A slice construPinCtor which clones the argument and uses it to construct each element of the slice
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgs<Args>(pub Args);
@@ -107,19 +107,24 @@ impl<T: PinCtor<Args>, Args: Clone> PinCtor<CloneArgs<Args>> for [T] {
     }
 }
 
-/// A slice construPinCtor which copies the argument and uses it to construct each element of the slice
+/// A slice constructor which copies the argument and uses it to construct each element of the slice
 ///
 /// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgsLen<Args>(pub usize, pub Args);
 
-impl<T: PinCtor<Args>, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T] {
+impl<T: PinCtor<Args>, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T]
+where
+    T: HasLayoutProvider<Args>,
+{
     type LayoutProvider = SliceLenLayoutProvider;
 }
 
 // SAFETY: The layout is compatible with cast
 unsafe impl<T: PinCtor<Args>, Args: Copy> MaybeLayoutProvider<[T], CopyArgsLen<Args>>
     for SliceLenLayoutProvider
+where
+    T: HasLayoutProvider<Args>,
 {
     fn layout_of(args: &CopyArgsLen<Args>) -> Option<Layout> {
         Layout::array::<T>(args.0).ok()
@@ -144,19 +149,24 @@ impl<T: PinCtor<Args>, Args: Copy> PinCtor<CopyArgsLen<Args>> for [T] {
     }
 }
 
-/// A slice construPinCtor which clones the argument and uses it to construct each element of the slice
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
 ///
 /// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgsLen<Args>(pub usize, pub Args);
 
-impl<T: PinCtor<Args>, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T] {
+impl<T: PinCtor<Args>, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T]
+where
+    T: HasLayoutProvider<Args>,
+{
     type LayoutProvider = SliceLenLayoutProvider;
 }
 
 // SAFETY: The layout is compatible with cast
 unsafe impl<T: PinCtor<Args>, Args: Clone> MaybeLayoutProvider<[T], CloneArgsLen<Args>>
     for SliceLenLayoutProvider
+where
+    T: HasLayoutProvider<Args>,
 {
     fn layout_of(args: &CloneArgsLen<Args>) -> Option<Layout> {
         Layout::array::<T>(args.0).ok()

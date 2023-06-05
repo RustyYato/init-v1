@@ -8,13 +8,14 @@ use alloc::{
 };
 
 use crate::{
-    layout_provider::{self as lp, LayoutProvider},
+    layout_provider::{self as lp, HasLayoutProvider, LayoutProvider},
     Ctor, Uninit,
 };
 
 /// Create a new value of the heap, initializing it in place
-pub fn boxed<T: ?Sized + Ctor<Args>, Args>(args: Args) -> Box<T>
+pub fn boxed<T, Args>(args: Args) -> Box<T>
 where
+    T: ?Sized + Ctor<Args> + HasLayoutProvider<Args>,
     T::LayoutProvider: LayoutProvider<T, Args>,
 {
     let layout = lp::layout_of::<T, Args>(&args).expect("Could not extract layout from arguments");

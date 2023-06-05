@@ -98,14 +98,18 @@ impl<'a, T> Uninit<'a, [T]> {
     }
 }
 
-impl<'a, T: Copy> Uninit<'a, [T]> {
+impl<'a, T> Uninit<'a, [T]> {
     /// Copy the data from `slice` and convert to an `Init`
     ///
     /// # Panics
     ///
     /// Panics if the length of `init` doesn't equal `self.len()`
+    ///
+    /// # Safety
+    ///
+    /// `init` must be leaked after this function is successfully called
     #[inline]
-    pub fn copy_from_slice(mut self, init: &[T]) -> Init<'a, [T]> {
+    pub unsafe fn copy_from_slice_unchecked(mut self, init: &[T]) -> Init<'a, [T]> {
         fn copy_from_slice_failed(my_len: usize, init_len: usize) -> ! {
             panic!("Could not copy from slice because lengths didn't match, expected length: {my_len} but got {init_len}")
         }
@@ -127,6 +131,19 @@ impl<'a, T: Copy> Uninit<'a, [T]> {
     }
 }
 
+impl<'a, T: Copy> Uninit<'a, [T]> {
+    /// Copy the data from `slice` and convert to an `Init`
+    ///
+    /// # Panics
+    ///
+    /// Panics if the length of `init` doesn't equal `self.len()`
+    #[inline]
+    pub fn copy_from_slice(self, init: &[T]) -> Init<'a, [T]> {
+        // SAFETY: T is copy so it doesn't do anything on `Drop`
+        unsafe { self.copy_from_slice_unchecked(init) }
+    }
+}
+
 impl<'a, T: ?Sized> Init<'a, T> {
     /// Pin a initialized pointer
     pub fn pin(self) -> PinInit<'a, T> {
@@ -136,7 +153,7 @@ impl<'a, T: ?Sized> Init<'a, T> {
         // * dereferencable (for reads and writes, but reads may yield uninitialized memory)
         // * initialized for type `T`
         // * not aliased by any unrelated pointers
-        // `PinInit` will take care of the not-moving gurantee
+        // `PinInit` will take care of the not-moving guarantee
         unsafe { PinInit::from_raw(self.into_raw()) }
     }
 
