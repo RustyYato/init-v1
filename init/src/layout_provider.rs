@@ -2,15 +2,15 @@
 
 use core::{alloc::Layout, ptr::NonNull};
 
-/// see [`MaybeLayoutProvider::layout_of`]
+/// see [`LayoutProvider::layout_of`]
 pub fn layout_of<T, Args>(args: &Args) -> Option<Layout>
 where
     T: ?Sized + HasLayoutProvider<Args>,
 {
-    <T::LayoutProvider as MaybeLayoutProvider<T, Args>>::layout_of(args)
+    <T::LayoutProvider as LayoutProvider<T, Args>>::layout_of(args)
 }
 
-/// see [`MaybeLayoutProvider::cast`]
+/// see [`LayoutProvider::cast`]
 ///
 /// # Safety
 ///
@@ -20,15 +20,15 @@ where
     T: ?Sized + HasLayoutProvider<Args>,
 {
     // SAFETY: guaranteed by caller
-    unsafe { <T::LayoutProvider as MaybeLayoutProvider<T, Args>>::cast(ptr, args) }
+    unsafe { <T::LayoutProvider as LayoutProvider<T, Args>>::cast(ptr, args) }
 }
 
-/// see [`MaybeLayoutProvider::is_zeroed`]
+/// see [`LayoutProvider::is_zeroed`]
 pub fn is_zeroed<T, Args>(args: &Args) -> bool
 where
     T: ?Sized + HasLayoutProvider<Args>,
 {
-    <T::LayoutProvider as MaybeLayoutProvider<T, Args>>::is_zeroed(args)
+    <T::LayoutProvider as LayoutProvider<T, Args>>::is_zeroed(args)
 }
 
 /// A type which provides the layout information for a given type/ctor argument pair
@@ -46,7 +46,7 @@ where
 /// with the same args
 pub trait HasLayoutProvider<Args: ?Sized = ()> {
     /// The layout provider for this constructor
-    type LayoutProvider: MaybeLayoutProvider<Self, Args>;
+    type LayoutProvider: LayoutProvider<Self, Args>;
 }
 
 /// A type which provides the layout information for a given type/ctor argument pair
@@ -62,7 +62,7 @@ pub trait HasLayoutProvider<Args: ?Sized = ()> {
 /// and that if `Self::layout(ptr, &args)` returns a `Layout`, that
 /// the layout fits the pointer returned by `Self::cast(ptr, &args)`
 /// with the same args
-pub unsafe trait MaybeLayoutProvider<T: ?Sized, Args: ?Sized = ()> {
+pub unsafe trait LayoutProvider<T: ?Sized, Args: ?Sized = ()> {
     /// The layout of the type for the given arguments
     fn layout_of(args: &Args) -> Option<Layout>;
 
@@ -85,7 +85,7 @@ pub unsafe trait MaybeLayoutProvider<T: ?Sized, Args: ?Sized = ()> {
 pub struct SizedLayoutProvider;
 
 // SAFETY: The layout of a sized type doesn't depend on the argument type
-unsafe impl<T: HasLayoutProvider<Args>, Args> MaybeLayoutProvider<T, Args> for SizedLayoutProvider {
+unsafe impl<T: HasLayoutProvider<Args>, Args> LayoutProvider<T, Args> for SizedLayoutProvider {
     #[inline]
     fn layout_of(_: &Args) -> Option<Layout> {
         Some(Layout::new::<T>())

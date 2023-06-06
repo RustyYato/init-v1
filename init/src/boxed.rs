@@ -41,7 +41,7 @@ where
     // then we can skip initialization
     if !is_zeroed {
         // SAFETY: ptr is a freshly allocated non-null, aligned pointer for `T`
-        // because the layout given by `MaybeLayoutProvider` is correct
+        // because the layout given by `LayoutProvider` is correct
         // and `alloc`/`alloc_zeroed`
         let uninit = unsafe { Uninit::from_raw(ptr.as_ptr()) };
 

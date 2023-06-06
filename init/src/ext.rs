@@ -2,7 +2,7 @@ use core::{alloc::Layout, pin::Pin};
 
 use crate::{
     interface::{CloneCtor, MoveCtor, PinCloneCtor, PinMoveCtor, PinTakeCtor, TakeCtor},
-    layout_provider::{HasLayoutProvider, MaybeLayoutProvider},
+    layout_provider::{HasLayoutProvider, LayoutProvider},
     Ctor,
 };
 
@@ -16,7 +16,7 @@ macro_rules! primitive {
         }
 
         // SAFETY: sized types have a known layout
-        unsafe impl MaybeLayoutProvider<$ty> for ScalarLayoutProvider {
+        unsafe impl LayoutProvider<$ty> for ScalarLayoutProvider {
             #[inline]
             fn layout_of((): &()) -> Option<core::alloc::Layout> {
                 Some(Layout::new::<$ty>())
@@ -38,7 +38,7 @@ macro_rules! primitive {
         }
 
         // SAFETY: sized types have a known layout
-        unsafe impl MaybeLayoutProvider<$ty, $ty> for ScalarLayoutProvider {
+        unsafe impl LayoutProvider<$ty, $ty> for ScalarLayoutProvider {
             #[inline]
             fn layout_of(_: &$ty) -> Option<core::alloc::Layout> {
                 Some(Layout::new::<$ty>())
@@ -62,7 +62,7 @@ macro_rules! primitive {
         }
 
         // SAFETY: sized types have a known layout
-        unsafe impl MaybeLayoutProvider<$ty, &$ty> for ScalarLayoutProvider {
+        unsafe impl LayoutProvider<$ty, &$ty> for ScalarLayoutProvider {
             #[inline]
             fn layout_of(_: &&$ty) -> Option<core::alloc::Layout> {
                 Some(Layout::new::<$ty>())
@@ -86,7 +86,7 @@ macro_rules! primitive {
         }
 
         // SAFETY: sized types have a known layout
-        unsafe impl MaybeLayoutProvider<$ty, &mut $ty> for ScalarLayoutProvider {
+        unsafe impl LayoutProvider<$ty, &mut $ty> for ScalarLayoutProvider {
             #[inline]
             fn layout_of(_: &&mut $ty) -> Option<core::alloc::Layout> {
                 Some(Layout::new::<$ty>())
@@ -230,7 +230,7 @@ impl HasLayoutProvider for () {
 }
 
 // SAFETY: sized types have a known layout
-unsafe impl MaybeLayoutProvider<()> for ScalarLayoutProvider {
+unsafe impl LayoutProvider<()> for ScalarLayoutProvider {
     #[inline]
     fn layout_of((): &()) -> Option<core::alloc::Layout> {
         Some(Layout::new::<()>())

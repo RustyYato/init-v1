@@ -2,7 +2,7 @@ use core::{alloc::Layout, pin::Pin, ptr::NonNull};
 
 use crate::{CtorArgs, Init, PinCtorArgs, PinInit, Uninit};
 
-use crate::layout_provider::{HasLayoutProvider, MaybeLayoutProvider};
+use crate::layout_provider::{HasLayoutProvider, LayoutProvider};
 
 use super::{CloneCtor, MoveCtor, PinCloneCtor, PinMoveCtor, PinTakeCtor, TakeCtor};
 
@@ -10,7 +10,7 @@ use super::{CloneCtor, MoveCtor, PinCloneCtor, PinMoveCtor, PinTakeCtor, TakeCto
 pub struct SourceLayoutProvider;
 
 // SAFETY: Copying the layout and metadata is always safe
-unsafe impl<T: ?Sized> MaybeLayoutProvider<T, T> for SourceLayoutProvider {
+unsafe impl<T: ?Sized> LayoutProvider<T, T> for SourceLayoutProvider {
     fn layout_of(args: &T) -> Option<core::alloc::Layout> {
         Some(Layout::for_value::<T>(args))
     }
@@ -22,7 +22,7 @@ unsafe impl<T: ?Sized> MaybeLayoutProvider<T, T> for SourceLayoutProvider {
 }
 
 // SAFETY: Copying the layout and metadata is always safe
-unsafe impl<T: ?Sized> MaybeLayoutProvider<T, &T> for SourceLayoutProvider {
+unsafe impl<T: ?Sized> LayoutProvider<T, &T> for SourceLayoutProvider {
     fn layout_of(args: &&T) -> Option<core::alloc::Layout> {
         Some(Layout::for_value::<T>(args))
     }
@@ -34,7 +34,7 @@ unsafe impl<T: ?Sized> MaybeLayoutProvider<T, &T> for SourceLayoutProvider {
 }
 
 // SAFETY: Copying the layout and metadata is always safe
-unsafe impl<T: ?Sized> MaybeLayoutProvider<T, &mut T> for SourceLayoutProvider {
+unsafe impl<T: ?Sized> LayoutProvider<T, &mut T> for SourceLayoutProvider {
     fn layout_of(args: &&mut T) -> Option<core::alloc::Layout> {
         Some(Layout::for_value::<T>(args))
     }
@@ -50,7 +50,7 @@ impl<T: ?Sized> HasLayoutProvider<Init<'_, T>> for T {
 }
 
 // SAFETY: Copying the layout and metadata is always safe
-unsafe impl<T: ?Sized> MaybeLayoutProvider<T, Init<'_, T>> for SourceLayoutProvider {
+unsafe impl<T: ?Sized> LayoutProvider<T, Init<'_, T>> for SourceLayoutProvider {
     fn layout_of(args: &Init<'_, T>) -> Option<core::alloc::Layout> {
         Some(Layout::for_value::<T>(args.get()))
     }
@@ -66,7 +66,7 @@ impl<T: ?Sized> HasLayoutProvider<Pin<&T>> for T {
 }
 
 // SAFETY: Copying the layout and metadata is always safe
-unsafe impl<T: ?Sized> MaybeLayoutProvider<T, Pin<&T>> for SourceLayoutProvider {
+unsafe impl<T: ?Sized> LayoutProvider<T, Pin<&T>> for SourceLayoutProvider {
     fn layout_of(args: &Pin<&T>) -> Option<core::alloc::Layout> {
         Some(Layout::for_value::<T>(args))
     }
@@ -82,7 +82,7 @@ impl<T: ?Sized> HasLayoutProvider<Pin<&mut T>> for T {
 }
 
 // SAFETY: Copying the layout and metadata is always safe
-unsafe impl<T: ?Sized> MaybeLayoutProvider<T, Pin<&mut T>> for SourceLayoutProvider {
+unsafe impl<T: ?Sized> LayoutProvider<T, Pin<&mut T>> for SourceLayoutProvider {
     fn layout_of(args: &Pin<&mut T>) -> Option<core::alloc::Layout> {
         Some(Layout::for_value::<T>(args))
     }
@@ -98,7 +98,7 @@ impl<T: ?Sized> HasLayoutProvider<PinInit<'_, T>> for T {
 }
 
 // SAFETY: Copying the layout and metadata is always safe
-unsafe impl<T: ?Sized> MaybeLayoutProvider<T, PinInit<'_, T>> for SourceLayoutProvider {
+unsafe impl<T: ?Sized> LayoutProvider<T, PinInit<'_, T>> for SourceLayoutProvider {
     fn layout_of(args: &PinInit<'_, T>) -> Option<core::alloc::Layout> {
         Some(Layout::for_value::<T>(args.get()))
     }

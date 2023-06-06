@@ -4,7 +4,7 @@ use core::{alloc::Layout, mem::MaybeUninit, pin::Pin, ptr::NonNull};
 
 use crate::{
     interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
-    layout_provider::{HasLayoutProvider, MaybeLayoutProvider},
+    layout_provider::{HasLayoutProvider, LayoutProvider},
     pin_slice_writer::PinSliceWriter,
     PinCtor,
 };
@@ -26,7 +26,7 @@ impl<T> HasLayoutProvider<UninitSliceLen> for [MaybeUninit<T>] {
 }
 
 // SAFETY: The layout is compatible with cast
-unsafe impl<T> MaybeLayoutProvider<[MaybeUninit<T>], UninitSliceLen> for SliceLenLayoutProvider {
+unsafe impl<T> LayoutProvider<[MaybeUninit<T>], UninitSliceLen> for SliceLenLayoutProvider {
     fn layout_of(args: &UninitSliceLen) -> Option<core::alloc::Layout> {
         Layout::array::<T>(args.0).ok()
     }
@@ -114,7 +114,7 @@ where
 }
 
 // SAFETY: The layout is compatible with cast
-unsafe impl<T: PinCtor<Args>, Args: Copy> MaybeLayoutProvider<[T], CopyArgsLen<Args>>
+unsafe impl<T: PinCtor<Args>, Args: Copy> LayoutProvider<[T], CopyArgsLen<Args>>
     for SliceLenLayoutProvider
 where
     T: HasLayoutProvider<Args>,
@@ -156,7 +156,7 @@ where
 }
 
 // SAFETY: The layout is compatible with cast
-unsafe impl<T: PinCtor<Args>, Args: Clone> MaybeLayoutProvider<[T], CloneArgsLen<Args>>
+unsafe impl<T: PinCtor<Args>, Args: Clone> LayoutProvider<[T], CloneArgsLen<Args>>
     for SliceLenLayoutProvider
 where
     T: HasLayoutProvider<Args>,
