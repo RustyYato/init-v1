@@ -3,7 +3,7 @@
 use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
 use init::{
-    layout_provider::{LayoutProvider, MaybeLayoutProvider},
+    layout_provider::{HasLayoutProvider, LayoutProvider},
     Ctor,
 };
 
@@ -143,8 +143,7 @@ struct WithCapacity(usize);
 
 struct WithCapacityLayoutProvider;
 
-impl<T> LayoutProvider<VecData<T>, WithCapacity> for WithCapacityLayoutProvider {}
-unsafe impl<T> MaybeLayoutProvider<VecData<T>, WithCapacity> for WithCapacityLayoutProvider {
+unsafe impl<T> LayoutProvider<VecData<T>, WithCapacity> for WithCapacityLayoutProvider {
     fn layout_of(args: &WithCapacity) -> Option<core::alloc::Layout> {
         Some(
             Layout::new::<usize>()
@@ -161,9 +160,11 @@ unsafe impl<T> MaybeLayoutProvider<VecData<T>, WithCapacity> for WithCapacityLay
     }
 }
 
-impl<T> Ctor<WithCapacity> for VecData<T> {
+impl<T> HasLayoutProvider<WithCapacity> for VecData<T> {
     type LayoutProvider = WithCapacityLayoutProvider;
+}
 
+impl<T> Ctor<WithCapacity> for VecData<T> {
     fn init(uninit: init::Uninit<'_, Self>, _: WithCapacity) -> init::Init<'_, Self> {
         init::init_struct! {
             uninit => Self {

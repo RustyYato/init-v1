@@ -3,7 +3,7 @@
 use core::{alloc::Layout, marker::PhantomData, ptr::NonNull};
 
 use init::{
-    layout_provider::{LayoutProvider, MaybeLayoutProvider, NoLayoutProvider},
+    layout_provider::{HasLayoutProvider, LayoutProvider},
     Ctor, Init,
 };
 
@@ -41,15 +41,10 @@ pub struct PushHeader<Args>(pub Args);
 /// The layout provider for `WithHeader`
 pub struct WithHeaderLayoutProvider;
 
-impl<T: ?Sized + Ctor<Args>, Args> LayoutProvider<WithHeader<T>, PushHeader<Args>>
-    for WithHeaderLayoutProvider
-{
-}
-
 // SAFETY: the layout given by layout_of matches the algorithm used to calculate the layout of
 // repr(C) structs
-unsafe impl<T: ?Sized + Ctor<Args>, Args> MaybeLayoutProvider<WithHeader<T>, PushHeader<Args>>
-    for WithHeaderLayoutProvider
+unsafe impl<T: ?Sized + HasLayoutProvider<Args>, Args>
+    LayoutProvider<WithHeader<T>, PushHeader<Args>> for WithHeaderLayoutProvider
 {
     fn layout_of(args: &PushHeader<Args>) -> Option<core::alloc::Layout> {
         let data_layout = init::layout_provider::layout_of::<T, Args>(&args.0)?;
@@ -66,9 +61,13 @@ unsafe impl<T: ?Sized + Ctor<Args>, Args> MaybeLayoutProvider<WithHeader<T>, Pus
     }
 }
 
-impl<T: ?Sized + Ctor<Args>, Args> Ctor<PushHeader<Args>> for WithHeader<T> {
+impl<T: ?Sized + HasLayoutProvider<Args>, Args> HasLayoutProvider<PushHeader<Args>>
+    for WithHeader<T>
+{
     type LayoutProvider = WithHeaderLayoutProvider;
+}
 
+impl<T: ?Sized + Ctor<Args>, Args> Ctor<PushHeader<Args>> for WithHeader<T> {
     #[inline]
     fn init(
         uninit: init::Uninit<'_, Self>,
@@ -169,8 +168,6 @@ impl<T: ?Sized> RawThinPtr<T> {
 struct Literal<T>(pub T);
 
 impl<T> init::CtorArgs<T> for Literal<T> {
-    type LayoutProvider = NoLayoutProvider;
-
     fn init_with(self, uninit: init::Uninit<'_, T>) -> init::Init<'_, T> {
         uninit.write(self.0)
     }

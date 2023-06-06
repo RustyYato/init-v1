@@ -8,7 +8,7 @@ use core::{
     ptr::NonNull,
 };
 
-use init::{layout_provider::LayoutProvider, Ctor};
+use init::{layout_provider::HasLayoutProvider, Ctor};
 
 use crate::ptr::{Metadata, PushHeader, RawThinPtr, WithHeader};
 
@@ -50,8 +50,7 @@ impl<T: ?Sized> ThinBox<T> {
     /// Construct a new ThinBox
     pub fn new<Args>(args: Args) -> Self
     where
-        T: Ctor<Args>,
-        T::LayoutProvider: LayoutProvider<T, Args>,
+        T: Ctor<Args> + HasLayoutProvider<Args>,
     {
         let bx = init::boxed::boxed::<WithHeader<T>, _>(PushHeader(args));
 
