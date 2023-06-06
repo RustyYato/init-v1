@@ -4,7 +4,7 @@ use core::{alloc::Layout, mem::MaybeUninit, pin::Pin, ptr::NonNull};
 
 use crate::{
     interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
-    layout_provider::{HasLayoutProvider, LayoutProvider, MaybeLayoutProvider, NoLayoutProvider},
+    layout_provider::{HasLayoutProvider, MaybeLayoutProvider},
     pin_slice_writer::PinSliceWriter,
     PinCtor,
 };
@@ -47,10 +47,6 @@ impl<T> PinCtor<UninitSliceLen> for [MaybeUninit<T>] {
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgs<Args>(pub Args);
 
-impl<T: PinCtor<Args>, Args> HasLayoutProvider<CopyArgs<Args>> for [T] {
-    type LayoutProvider = NoLayoutProvider;
-}
-
 impl<T: PinCtor<Args>, Args: Copy> PinCtor<CopyArgs<Args>> for [T] {
     #[inline]
     fn pin_init(
@@ -73,10 +69,6 @@ impl<T: PinCtor<Args>, Args: Copy> PinCtor<CopyArgs<Args>> for [T] {
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgs<Args>(pub Args);
-
-impl<T: PinCtor<Args>, Args: Clone> HasLayoutProvider<CloneArgs<Args>> for [T] {
-    type LayoutProvider = NoLayoutProvider;
-}
 
 impl<T: PinCtor<Args>, Args: Clone> PinCtor<CloneArgs<Args>> for [T] {
     #[inline]
@@ -194,13 +186,6 @@ impl<T: PinCtor<Args>, Args: Clone> PinCtor<CloneArgsLen<Args>> for [T] {
 
 /// A layout provider for slices
 pub struct SliceLenLayoutProvider;
-
-impl<T, Args> LayoutProvider<[T], Args> for SliceLenLayoutProvider
-where
-    Self: MaybeLayoutProvider<[T], Args>,
-    [T]: PinCtor<Args>,
-{
-}
 
 impl<T: PinMoveCtor> PinMoveCtor for [T] {
     const IS_MOVE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinMoveTag> = {

@@ -8,7 +8,7 @@ use alloc::{
 };
 
 use crate::{
-    layout_provider::{self as lp, HasLayoutProvider, LayoutProvider},
+    layout_provider::{self as lp, HasLayoutProvider},
     Ctor, Uninit,
 };
 
@@ -16,7 +16,6 @@ use crate::{
 pub fn boxed<T, Args>(args: Args) -> Box<T>
 where
     T: ?Sized + Ctor<Args> + HasLayoutProvider<Args>,
-    T::LayoutProvider: LayoutProvider<T, Args>,
 {
     let layout = lp::layout_of::<T, Args>(&args).expect("Could not extract layout from arguments");
     let is_zeroed = lp::is_zeroed::<T, Args>(&args);

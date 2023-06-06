@@ -4,14 +4,10 @@ use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
     interface::{CloneCtor, MoveCtor, TakeCtor},
-    layout_provider::{HasLayoutProvider, LayoutProvider, MaybeLayoutProvider, NoLayoutProvider},
+    layout_provider::{HasLayoutProvider, MaybeLayoutProvider},
     slice_writer::SliceWriter,
     Ctor,
 };
-
-impl<T> HasLayoutProvider for [T] {
-    type LayoutProvider = NoLayoutProvider;
-}
 
 impl<T: Ctor> Ctor for [T] {
     #[inline]
@@ -51,10 +47,6 @@ impl<T> Ctor<UninitSliceLen> for [MaybeUninit<T>] {
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgs<Args>(pub Args);
 
-impl<T: Ctor<Args>, Args> HasLayoutProvider<CopyArgs<Args>> for [T] {
-    type LayoutProvider = NoLayoutProvider;
-}
-
 impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
     #[inline]
     fn init(
@@ -77,10 +69,6 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgs<Args>(pub Args);
-
-impl<T: Ctor<Args>, Args: Clone> HasLayoutProvider<CloneArgs<Args>> for [T] {
-    type LayoutProvider = NoLayoutProvider;
-}
 
 impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
     #[inline]
@@ -198,13 +186,6 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgsLen<Args>> for [T] {
 
 /// A layout provider for slices
 pub struct SliceLenLayoutProvider;
-
-impl<T, Args> LayoutProvider<[T], Args> for SliceLenLayoutProvider
-where
-    Self: MaybeLayoutProvider<[T], Args>,
-    [T]: Ctor<Args>,
-{
-}
 
 impl<T: MoveCtor> MoveCtor for [T] {
     const IS_MOVE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::MoveTag> = {

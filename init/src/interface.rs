@@ -5,7 +5,7 @@ mod source;
 use core::{marker::PhantomData, mem::MaybeUninit, pin::Pin};
 
 use crate::{
-    layout_provider::{HasLayoutProvider, NoLayoutProvider, SizedLayoutProvider},
+    layout_provider::{HasLayoutProvider, SizedLayoutProvider},
     Init, PinInit, Uninit,
 };
 
@@ -73,10 +73,6 @@ impl<T> Ctor for MaybeUninit<T> {
 }
 
 struct CtorFn<F, T: ?Sized>(F, PhantomData<T>);
-
-impl<T: ?Sized, F> HasLayoutProvider<CtorFn<F, T>> for T {
-    type LayoutProvider = NoLayoutProvider;
-}
 
 impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Init<'_, T>> CtorArgs<T> for CtorFn<F, T> {
     #[inline]

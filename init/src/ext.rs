@@ -2,7 +2,7 @@ use core::{alloc::Layout, pin::Pin};
 
 use crate::{
     interface::{CloneCtor, MoveCtor, PinCloneCtor, PinMoveCtor, PinTakeCtor, TakeCtor},
-    layout_provider::{HasLayoutProvider, LayoutProvider, MaybeLayoutProvider},
+    layout_provider::{HasLayoutProvider, MaybeLayoutProvider},
     Ctor,
 };
 
@@ -15,7 +15,6 @@ macro_rules! primitive {
             type LayoutProvider = ScalarLayoutProvider;
         }
 
-        impl LayoutProvider<$ty> for ScalarLayoutProvider {}
         // SAFETY: sized types have a known layout
         unsafe impl MaybeLayoutProvider<$ty> for ScalarLayoutProvider {
             #[inline]
@@ -38,7 +37,6 @@ macro_rules! primitive {
             type LayoutProvider = ScalarLayoutProvider;
         }
 
-        impl LayoutProvider<$ty, $ty> for ScalarLayoutProvider {}
         // SAFETY: sized types have a known layout
         unsafe impl MaybeLayoutProvider<$ty, $ty> for ScalarLayoutProvider {
             #[inline]
@@ -63,7 +61,6 @@ macro_rules! primitive {
             type LayoutProvider = ScalarLayoutProvider;
         }
 
-        impl LayoutProvider<$ty, &$ty> for ScalarLayoutProvider {}
         // SAFETY: sized types have a known layout
         unsafe impl MaybeLayoutProvider<$ty, &$ty> for ScalarLayoutProvider {
             #[inline]
@@ -88,7 +85,6 @@ macro_rules! primitive {
             type LayoutProvider = ScalarLayoutProvider;
         }
 
-        impl LayoutProvider<$ty, &mut $ty> for ScalarLayoutProvider {}
         // SAFETY: sized types have a known layout
         unsafe impl MaybeLayoutProvider<$ty, &mut $ty> for ScalarLayoutProvider {
             #[inline]

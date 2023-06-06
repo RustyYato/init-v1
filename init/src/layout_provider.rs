@@ -81,13 +81,9 @@ pub unsafe trait MaybeLayoutProvider<T: ?Sized, Args: ?Sized = ()> {
     }
 }
 
-/// A type where `MaybeLayoutProvider::layout_of` returns `Some` for some arguments
-pub trait LayoutProvider<T: ?Sized, Args: ?Sized = ()>: MaybeLayoutProvider<T, Args> {}
-
 /// The layout provider for any sized type
 pub struct SizedLayoutProvider;
 
-impl<T: HasLayoutProvider<Args>, Args> LayoutProvider<T, Args> for SizedLayoutProvider {}
 // SAFETY: The layout of a sized type doesn't depend on the argument type
 unsafe impl<T: HasLayoutProvider<Args>, Args> MaybeLayoutProvider<T, Args> for SizedLayoutProvider {
     #[inline]
@@ -98,24 +94,5 @@ unsafe impl<T: HasLayoutProvider<Args>, Args> MaybeLayoutProvider<T, Args> for S
     #[inline]
     unsafe fn cast(ptr: NonNull<u8>, _: &Args) -> NonNull<T> {
         ptr.cast()
-    }
-}
-
-/// The layout provider for any type (which doesn't actually provide a layout)
-pub struct NoLayoutProvider;
-
-// SAFETY: The layout of a sized type doesn't depend on the argument type
-unsafe impl<T: ?Sized + HasLayoutProvider<Args>, Args> MaybeLayoutProvider<T, Args>
-    for NoLayoutProvider
-{
-    #[inline]
-    fn layout_of(_: &Args) -> Option<Layout> {
-        None
-    }
-
-    #[inline]
-    unsafe fn cast(_: NonNull<u8>, _: &Args) -> NonNull<T> {
-        // SAFETY: layout_of never returns Some, so this function can't be safely called
-        unsafe { core::hint::unreachable_unchecked() }
     }
 }
