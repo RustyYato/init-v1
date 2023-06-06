@@ -197,6 +197,34 @@ impl<T> ThinVec<T> {
         // the vector will take ownership of the value
         init.take_ownership();
     }
+
+    /// Remove the last element from the vector
+    ///
+    /// # Safety
+    ///
+    /// The vector shouldn't be empty
+    pub unsafe fn pop_unchecked(&mut self) -> init::Init<'_, T> {
+        let ptr = self.as_header_mut_ptr();
+
+        unsafe {
+            (*ptr).len -= 1;
+            let len = (*ptr).len;
+
+            let ptr = self.as_mut_ptr().add(len);
+
+            init::Init::from_raw(ptr)
+        }
+    }
+
+    /// Remove the last element from the vector
+    pub fn pop(&mut self) -> Option<init::Init<'_, T>> {
+        if self.is_empty() {
+            return None;
+        }
+
+        //  SAFETY: The vector isn't empty
+        Some(unsafe { self.pop_unchecked() })
+    }
 }
 
 fn new_capacity(capacity: usize, additional: usize) -> Option<usize> {
