@@ -38,7 +38,7 @@ impl<T> Drop for Drain<'_, T> {
             remaining.take_ownership();
 
             let tail_len = self.tail_len;
-            let tail_start = data.add(tail_len);
+            let tail_start = data.add(self.tail_offset);
 
             (*ptr).len += rem_len + tail_len;
 
