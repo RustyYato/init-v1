@@ -39,6 +39,20 @@ impl<T> Iterator for RawIter<T> {
 }
 
 impl<T> RawIter<T> {
+    #[allow(clippy::useless_transmute)]
+    const fn empty() -> Self {
+        let start = NonNull::dangling();
+        RawIter {
+            start,
+            end: if core::mem::size_of::<T>() == 0 {
+                // SAFETY: it's always safe to transmute integers to pointers
+                unsafe { core::mem::transmute::<usize, *mut T>(0) }
+            } else {
+                start.as_ptr()
+            },
+        }
+    }
+
     #[inline]
     unsafe fn new(ptr: NonNull<[T]>) -> Self {
         let start = ptr.as_ptr().cast::<T>();
@@ -97,6 +111,7 @@ impl<T> RawIter<T> {
     }
 }
 
+/// An iterator for `Uninit<[T]>`
 pub struct IterUninit<'a, T> {
     raw: RawIter<T>,
     lt: PhantomData<Uninit<'a, T>>,
@@ -111,16 +126,35 @@ impl<'a, T> IterUninit<'a, T> {
         }
     }
 
+    /// The number of remaining elements in the iterator
     #[inline]
     pub const fn len(&self) -> usize {
         self.raw.len()
     }
 
+    /// The number of remaining elements in the iterator
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.raw.len() == 0
+    }
+
+    /// The remaining elements in the iterator
     #[inline]
     pub fn remaining(&mut self) -> *mut [T] {
         self.raw.remaining()
     }
 
+    /// The remaining elements in the iterator
+    #[inline]
+    pub fn into_remaining(self) -> *mut [T] {
+        core::mem::ManuallyDrop::new(self).raw.remaining()
+    }
+
+    /// The next element of the iterator without checking if it's exhausted
+    ///
+    /// # Safety
+    ///
+    /// The iterator must not be exhausted
     pub unsafe fn next_unchecked(&mut self) -> Uninit<'a, T> {
         // SAFETY: the caller guarantees that this iterator isn't exhausted
         let ptr = unsafe { self.raw.next_unchecked() };
@@ -144,6 +178,7 @@ impl<'a, T> Iterator for IterUninit<'a, T> {
     }
 }
 
+/// An iterator for `Init<[T]>`
 pub struct IterInit<'a, T> {
     raw: RawIter<T>,
     lt: PhantomData<Init<'a, T>>,
@@ -158,9 +193,51 @@ impl<'a, T> IterInit<'a, T> {
         }
     }
 
+    /// Take the iterator and replace with an empty iterator
+    pub fn take_ownership(&mut self) -> Self {
+        let iter = Self {
+            raw: RawIter::empty(),
+            lt: PhantomData,
+        };
+        core::mem::replace(self, iter)
+    }
+
+    /// The number of remaining elements in the iterator
     #[inline]
     pub const fn len(&self) -> usize {
         self.raw.len()
+    }
+
+    /// The number of remaining elements in the iterator
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.raw.len() == 0
+    }
+
+    /// The remaining elements in the iterator
+    #[inline]
+    pub fn remaining(&mut self) -> *mut [T] {
+        self.raw.remaining()
+    }
+
+    /// The remaining elements in the iterator
+    #[inline]
+    pub fn into_remaining(self) -> *mut [T] {
+        core::mem::ManuallyDrop::new(self).raw.remaining()
+    }
+
+    /// The next element of the iterator without checking if it's exhausted
+    ///
+    /// # Safety
+    ///
+    /// The iterator must not be exhausted
+    pub unsafe fn next_unchecked(&mut self) -> Init<'a, T> {
+        // SAFETY: the caller guarantees that this iterator isn't exhausted
+        let ptr = unsafe { self.raw.next_unchecked() };
+        // SAFETY: the raw iterator was created from an `Init<'_, T>` and
+        // raw only gives out distinct elements of the slice, which means they are
+        // all aligned, non-null, dereferencable, and unique
+        unsafe { Init::from_raw(ptr.as_ptr()) }
     }
 }
 

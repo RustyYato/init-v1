@@ -2,6 +2,7 @@ use core::marker::PhantomData;
 
 use crate::{ptr::IterInit, Init, PinInit};
 
+/// An iterator for `PinInit<[T]>`
 pub struct IterPinInit<'a, T> {
     raw: IterInit<'a, T>,
     lt: PhantomData<Init<'a, T>>,
@@ -16,9 +17,26 @@ impl<'a, T> IterPinInit<'a, T> {
         }
     }
 
+    /// The number of remaining elements in the iterator
     #[inline]
     pub const fn len(&self) -> usize {
         self.raw.len()
+    }
+
+    /// The number of remaining elements in the iterator
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.raw.is_empty()
+    }
+
+    /// The next element of the iterator without checking if it's exhausted
+    ///
+    /// # Safety
+    ///
+    /// The iterator must not be exhausted
+    pub unsafe fn next_unchecked(&mut self) -> PinInit<'a, T> {
+        // SAFETY: the caller guarantees that this iterator isn't exhausted
+        unsafe { self.raw.next_unchecked() }.pin()
     }
 }
 

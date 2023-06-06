@@ -35,5 +35,5 @@ pub mod pin_slice;
 pub mod slice;
 
 pub use interface::{ctor, pin_ctor, Ctor, CtorArgs, PinCtor, PinCtorArgs};
-pub use pin_ptr::PinInit;
-pub use ptr::{Init, Uninit};
+pub use pin_ptr::{IterPinInit, PinInit};
+pub use ptr::{Init, IterInit, IterUninit, Uninit};

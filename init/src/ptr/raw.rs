@@ -138,4 +138,9 @@ impl<'a, T: ?Sized> Init<'a, T> {
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.ptr.as_ptr()
     }
+
+    /// Leak the `Init` and is as signal that something else is taking ownership of the value
+    pub fn take_ownership(self) {
+        core::mem::forget(self)
+    }
 }

@@ -48,7 +48,7 @@ where
         let init = uninit.init(args);
 
         // the box will take ownership of the `T`, so we should forget the `Init`
-        core::mem::forget(init);
+        init.take_ownership();
     }
 
     // SAFETY: ptr points to an initialized, non-null, aligned pointer to T that was allocated

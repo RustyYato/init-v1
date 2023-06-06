@@ -1,17 +1,20 @@
 //! A thin vector implementation that stores the length and capacity on the heap
 
+mod iter;
+
 use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
+use std::ops::RangeBounds;
 
 use alloc::alloc::handle_alloc_error;
 use init::{
     interface::MoveCtor,
     layout_provider::{HasLayoutProvider, LayoutProvider},
-    Ctor,
+    Ctor, Init,
 };
 
 use crate::{
     boxed::ThinBox,
-    ptr::{PushHeader, RawThinPtr, WithHeader, WithHeaderLayoutProvider},
+    ptr::{PushHeader, RawThinPtr, WithHeader},
 };
 
 /// A thin vector which stores the length and capacity on the heap
@@ -145,6 +148,55 @@ impl<T> ThinVec<T> {
         let header = self.as_header_mut_ptr();
         unsafe { core::ptr::addr_of_mut!((*header).data).cast() }
     }
+
+    pub fn as_slice(&self) -> &[T] {
+        unsafe { core::slice::from_raw_parts::<T>(self.as_ptr(), self.len()) }
+    }
+
+    pub fn drain(&mut self, range: impl RangeBounds<usize>) -> iter::Drain<'_, T> {
+        let old_len = self.len();
+        let range = core::slice::range(range, ..old_len);
+        let range_size = range.end - range.start;
+        let new_len = old_len - range_size;
+
+        let init = unsafe {
+            let ptr = self.ptr.as_mut_ptr();
+            (*ptr).len = range.start;
+            let items = core::ptr::addr_of_mut!((*ptr).data).cast::<T>();
+            Init::from_raw(core::ptr::slice_from_raw_parts_mut(
+                items.add(range.start),
+                range_size,
+            ))
+        };
+
+        iter::Drain {
+            ptr: self.ptr,
+            offset: range.start,
+            new_len,
+            iter: init.into_iter(),
+        }
+    }
+
+    /// Construct and push a value in place
+    ///
+    /// # Safety
+    ///
+    /// The length must not be equal to the capacity
+    pub unsafe fn emplace_unchecked<Args>(&mut self, args: Args)
+    where
+        T: Ctor<Args>,
+    {
+        let ptr = self.as_mut_ptr();
+        let len = self.len();
+
+        let uninit = unsafe { init::Uninit::from_raw(ptr.add(len)) };
+        let init = uninit.init(args);
+
+        unsafe { (*self.as_header_mut_ptr()).len += 1 }
+
+        // the vector will take ownership of the value
+        init.take_ownership();
+    }
 }
 
 fn new_capacity(capacity: usize, additional: usize) -> Option<usize> {
@@ -226,7 +278,28 @@ impl<T: MoveCtor> ThinVec<T> {
     }
 
     fn reserve_inner_move(&mut self, additional: usize) {
-        todo!()
+        let new_capacity =
+            new_capacity(self.capacity(), additional).expect("Could not calculate new capacity");
+        let mut vec = ThinVec::with_capacity(new_capacity);
+
+        for i in self.drain(..) {
+            unsafe { vec.emplace_unchecked(i) }
+        }
+
+        *self = vec;
+    }
+
+    /// Construct and push a value in place
+    pub fn emplace<Args>(&mut self, args: Args)
+    where
+        T: Ctor<Args>,
+    {
+        if self.len() == self.capacity() {
+            self.reserve(1);
+        }
+
+        // SAFETY: just reserved enough space
+        unsafe { self.emplace_unchecked(args) }
     }
 }
 
@@ -269,6 +342,22 @@ impl<T> Ctor<WithCapacity> for VecData<T> {
 #[test]
 fn test() {
     let mut v = ThinVec::<i32>::new();
+
+    v.reserve(10);
+    v.reserve(90);
+
+    struct Foo(u8);
+
+    impl MoveCtor for Foo {
+        fn move_ctor<'this>(
+            uninit: init::Uninit<'this, Self>,
+            p: init::Init<Self>,
+        ) -> init::Init<'this, Self> {
+            uninit.write(p.into_inner())
+        }
+    }
+
+    let mut v = ThinVec::<Foo>::new();
 
     v.reserve(10);
     v.reserve(90);

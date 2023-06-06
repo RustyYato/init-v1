@@ -170,6 +170,14 @@ impl<'a, T: ?Sized> Init<'a, T> {
     }
 }
 
+impl<T> Init<'_, T> {
+    /// Read the underlying value from the `Init`
+    pub fn into_inner(self) -> T {
+        // SAFETY: the pointer is valid for reads
+        unsafe { self.into_raw().read() }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::Uninit;
