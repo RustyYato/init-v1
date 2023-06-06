@@ -157,7 +157,7 @@ impl<T> ThinVec<T> {
         let old_len = self.len();
         let range = core::slice::range(range, ..old_len);
         let range_size = range.end - range.start;
-        let new_len = old_len - range_size;
+        let tail_len = old_len - range.end;
 
         let init = unsafe {
             let ptr = self.ptr.as_mut_ptr();
@@ -171,8 +171,8 @@ impl<T> ThinVec<T> {
 
         iter::Drain {
             ptr: self.ptr,
-            offset: range.start,
-            new_len,
+            tail_offset: range.end,
+            tail_len,
             iter: init.into_iter(),
         }
     }

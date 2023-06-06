@@ -170,6 +170,24 @@ impl<'a, T: ?Sized> Init<'a, T> {
     }
 }
 
+impl<'a, T> Init<'a, [T]> {
+    /// The length of the slice
+    pub const fn len(&self) -> usize {
+        crate::hacks::ptr_slice_len(self.as_ptr())
+    }
+
+    /// Checks if the slice is empty (has length == 0)
+    pub const fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// An iterator over all elements of the slice
+    #[inline]
+    pub fn iter(self) -> IterInit<'a, T> {
+        IterInit::new(self)
+    }
+}
+
 impl<T> Init<'_, T> {
     /// Read the underlying value from the `Init`
     pub fn into_inner(self) -> T {

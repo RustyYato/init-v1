@@ -38,6 +38,27 @@ impl<T> Iterator for RawIter<T> {
     }
 }
 
+impl<T> DoubleEndedIterator for RawIter<T> {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if core::mem::size_of::<T>() == 0 {
+            self.end = (self.end as usize).checked_sub(1)? as *mut T;
+
+            Some(NonNull::dangling())
+        } else {
+            if self.start.as_ptr() == self.end {
+                return None;
+            }
+
+            // SAFETY: the end pointer is greater than start, so self.end - 1 is inbounds
+            let current = unsafe { self.end.sub(1) };
+            self.end = current;
+            // SAFETY: the end pointer is greater than start, so it's not null
+            Some(unsafe { NonNull::new_unchecked(current) })
+        }
+    }
+}
+
 impl<T> RawIter<T> {
     #[allow(clippy::useless_transmute)]
     const fn empty() -> Self {
@@ -109,6 +130,20 @@ impl<T> RawIter<T> {
             current
         }
     }
+
+    unsafe fn next_back_unchecked(&mut self) -> NonNull<T> {
+        if core::mem::size_of::<T>() == 0 {
+            self.end = (self.end as usize).wrapping_sub(1) as *mut T;
+
+            NonNull::dangling()
+        } else {
+            // SAFETY: the end pointer is greater than start, so self.end - 1 is inbounds
+            let current = unsafe { self.end.sub(1) };
+            self.end = current;
+            // SAFETY: the end pointer is greater than start, so it's not null
+            unsafe { NonNull::new_unchecked(current) }
+        }
+    }
 }
 
 /// An iterator for `Uninit<[T]>`
@@ -163,6 +198,20 @@ impl<'a, T> IterUninit<'a, T> {
         // all aligned, non-null, dereferencable, and unique
         unsafe { Uninit::from_raw(ptr.as_ptr()) }
     }
+
+    /// The next_back element of the iterator without checking if it's exhausted
+    ///
+    /// # Safety
+    ///
+    /// The iterator must not be exhausted
+    pub unsafe fn next_back_unchecked(&mut self) -> Uninit<'a, T> {
+        // SAFETY: the caller guarantees that this iterator isn't exhausted
+        let ptr = unsafe { self.raw.next_back_unchecked() };
+        // SAFETY: the raw iterator was created from an `Uninit<'_, T>` and
+        // raw only gives out distinct elements of the slice, which means they are
+        // all aligned, non-null, dereferencable, and unique
+        unsafe { Uninit::from_raw(ptr.as_ptr()) }
+    }
 }
 
 impl<'a, T> Iterator for IterUninit<'a, T> {
@@ -170,6 +219,17 @@ impl<'a, T> Iterator for IterUninit<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.raw.next().map(|ptr| {
+            // SAFETY: the raw iterator was created from an `Uninit<'_, T>` and
+            // raw only gives out distinct elements of the slice, which means they are
+            // all aligned, non-null, dereferencable, and unique
+            unsafe { Uninit::from_raw(ptr.as_ptr()) }
+        })
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for IterUninit<'a, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.raw.next_back().map(|ptr| {
             // SAFETY: the raw iterator was created from an `Uninit<'_, T>` and
             // raw only gives out distinct elements of the slice, which means they are
             // all aligned, non-null, dereferencable, and unique
@@ -193,8 +253,12 @@ impl<'a, T> IterInit<'a, T> {
         }
     }
 
-    /// Take the iterator and replace with an empty iterator
-    pub fn take_ownership(&mut self) -> Self {
+    /// Take the iterator out and leave `self` in an unspecified state
+    ///
+    /// # Safety
+    ///
+    /// the only safe operation on `self` after this function is dropping it
+    pub unsafe fn take_ownership(&mut self) -> Self {
         let iter = Self {
             raw: RawIter::empty(),
             lt: PhantomData,
@@ -222,8 +286,10 @@ impl<'a, T> IterInit<'a, T> {
 
     /// The remaining elements in the iterator
     #[inline]
-    pub fn into_remaining(self) -> *mut [T] {
-        core::mem::ManuallyDrop::new(self).raw.remaining()
+    pub fn into_remaining(self) -> Init<'a, [T]> {
+        let remaining = core::mem::ManuallyDrop::new(self).raw.remaining();
+        // SAFETY: the pointer is unique for `'a`
+        unsafe { Init::from_raw(remaining) }
     }
 
     /// The next element of the iterator without checking if it's exhausted
@@ -234,6 +300,20 @@ impl<'a, T> IterInit<'a, T> {
     pub unsafe fn next_unchecked(&mut self) -> Init<'a, T> {
         // SAFETY: the caller guarantees that this iterator isn't exhausted
         let ptr = unsafe { self.raw.next_unchecked() };
+        // SAFETY: the raw iterator was created from an `Init<'_, T>` and
+        // raw only gives out distinct elements of the slice, which means they are
+        // all aligned, non-null, dereferencable, and unique
+        unsafe { Init::from_raw(ptr.as_ptr()) }
+    }
+
+    /// The next_back element of the iterator without checking if it's exhausted
+    ///
+    /// # Safety
+    ///
+    /// The iterator must not be exhausted
+    pub unsafe fn next_back_unchecked(&mut self) -> Init<'a, T> {
+        // SAFETY: the caller guarantees that this iterator isn't exhausted
+        let ptr = unsafe { self.raw.next_back_unchecked() };
         // SAFETY: the raw iterator was created from an `Init<'_, T>` and
         // raw only gives out distinct elements of the slice, which means they are
         // all aligned, non-null, dereferencable, and unique
@@ -257,6 +337,17 @@ impl<'a, T> Iterator for IterInit<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.raw.next().map(|ptr| {
+            // SAFETY: the raw iterator was created from an `Init<'_, T>` and
+            // raw only gives out distinct elements of the slice, which means they are
+            // all aligned, non-null, dereferencable, unique, and initialized
+            unsafe { Init::from_raw(ptr.as_ptr()) }
+        })
+    }
+}
+
+impl<'a, T> DoubleEndedIterator for IterInit<'a, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.raw.next_back().map(|ptr| {
             // SAFETY: the raw iterator was created from an `Init<'_, T>` and
             // raw only gives out distinct elements of the slice, which means they are
             // all aligned, non-null, dereferencable, unique, and initialized
