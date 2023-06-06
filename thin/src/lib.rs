@@ -1,4 +1,4 @@
-#![no_std]
+// #![no_std]
 // #![forbid(
 //     missing_docs,
 //     clippy::missing_safety_doc,
@@ -17,3 +17,5 @@ extern crate std;
 pub mod boxed;
 pub mod ptr;
 pub mod vec;
+
+mod core_ext;

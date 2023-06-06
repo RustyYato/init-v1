@@ -2,15 +2,22 @@
 
 use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
+use alloc::alloc::handle_alloc_error;
 use init::{
+    interface::MoveCtor,
     layout_provider::{HasLayoutProvider, LayoutProvider},
     Ctor,
 };
 
 use crate::{
     boxed::ThinBox,
-    ptr::{RawThinPtr, WithHeader},
+    ptr::{PushHeader, RawThinPtr, WithHeader, WithHeaderLayoutProvider},
 };
+
+/// A thin vector which stores the length and capacity on the heap
+pub struct ThinVec<T> {
+    ptr: RawThinPtr<VecData<T>, usize>,
+}
 
 #[repr(C)]
 struct VecDataInner<T: ?Sized> {
@@ -20,16 +27,13 @@ struct VecDataInner<T: ?Sized> {
 type VecData<T> = VecDataInner<[MaybeUninit<T>]>;
 type VecDataSized<T, const N: usize> = VecDataInner<[MaybeUninit<T>; N]>;
 
+type AllocTy<T> = WithHeader<VecData<T>>;
+
 #[repr(C)]
 struct VecDataHeader<T> {
     capacity: usize,
     len: usize,
     data: [T; 0],
-}
-
-/// A thin vector which stores the length and capacity on the heap
-pub struct ThinVec<T> {
-    ptr: RawThinPtr<VecData<T>, usize>,
 }
 
 fn _verify_covariant<'a: 'b, 'b, T>(t: ThinVec<&'a T>) -> ThinVec<&'b T> {
@@ -53,7 +57,7 @@ impl<T> Drop for ThinVec<T> {
             return;
         }
 
-        let ptr = unsafe { self.ptr.as_mut_ptr() };
+        let ptr = unsafe { self.ptr.as_mut_with_header_ptr() };
         let _alloc = RawThinVec {
             ptr: self.ptr.as_erased_mut_ptr(),
             layout: unsafe { Layout::for_value(&*ptr) },
@@ -64,8 +68,8 @@ impl<T> Drop for ThinVec<T> {
         }
 
         unsafe {
-            let len = (*ptr).len;
-            let data = core::ptr::addr_of_mut!((*ptr).data);
+            let len = (*ptr).value.len;
+            let data = core::ptr::addr_of_mut!((*ptr).value.data);
             let data = core::ptr::slice_from_raw_parts_mut(data.cast::<T>(), len);
             data.drop_in_place();
         }
@@ -113,7 +117,11 @@ impl<T> ThinVec<T> {
     }
 
     pub fn capacity(&self) -> usize {
-        unsafe { (*self.as_header_ptr()).capacity }
+        if core::mem::size_of::<T>() == 0 {
+            usize::MAX
+        } else {
+            unsafe { (*self.as_header_ptr()).capacity }
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -136,6 +144,89 @@ impl<T> ThinVec<T> {
     pub fn as_mut_ptr(&mut self) -> *mut T {
         let header = self.as_header_mut_ptr();
         unsafe { core::ptr::addr_of_mut!((*header).data).cast() }
+    }
+}
+
+fn new_capacity(capacity: usize, additional: usize) -> Option<usize> {
+    let expected_capacity = capacity.checked_add(additional)?;
+    let new_capacity = capacity.wrapping_mul(2);
+    let min_capacity = 4;
+    Some(expected_capacity.max(new_capacity).max(min_capacity))
+}
+
+fn new_layout<T>(capacity: usize, additional: usize) -> Option<(Layout, Layout, usize)> {
+    let new_capacity = new_capacity(capacity, additional)?;
+
+    let layout =
+        init::layout_provider::layout_of::<AllocTy<T>, _>(&PushHeader(WithCapacity(capacity)));
+    let new_layout =
+        init::layout_provider::layout_of::<AllocTy<T>, _>(&PushHeader(WithCapacity(new_capacity)))?;
+
+    let layout = unsafe { layout.unwrap_unchecked() };
+
+    Some((layout, new_layout, new_capacity))
+}
+
+impl<T: MoveCtor> ThinVec<T> {
+    pub fn reserve(&mut self, additional: usize) {
+        let remaining_capacity = self.capacity() - self.len();
+
+        if remaining_capacity < additional {
+            self.reserve_inner(additional)
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn reserve_inner(&mut self, additional: usize) {
+        if core::mem::size_of::<T>() == 0 {
+            panic!("Cannot reserve more than usize::MAX elements for Zero Sized Types")
+        } else if self.capacity() == 0 {
+            self.reserve_first(additional)
+        } else if T::IS_MOVE_TRIVIAL.get() {
+            self.reserve_inner_realloc(additional)
+        } else {
+            self.reserve_inner_move(additional)
+        }
+    }
+
+    #[cold]
+    fn reserve_first(&mut self, additional: usize) {
+        crate::core_ext::write(self, Self::with_capacity(additional))
+    }
+
+    fn reserve_inner_realloc(&mut self, additional: usize) {
+        let (layout, new_layout, new_capacity) =
+            new_layout::<T>(self.capacity(), additional).expect("Could not calculate new layout");
+
+        let ptr = unsafe {
+            alloc::alloc::realloc(
+                self.ptr.as_erased_mut_ptr().cast(),
+                layout,
+                new_layout.size(),
+            )
+        };
+
+        let Some(ptr) = NonNull::new(ptr) else {
+            handle_alloc_error(new_layout);
+        };
+
+        // SAFETY: WithCapacityLayoutProvider::cast is always safe to call
+        let ptr = unsafe {
+            init::layout_provider::cast::<AllocTy<T>, _>(
+                ptr,
+                &PushHeader(WithCapacity(new_capacity)),
+            )
+        };
+
+        // SAFETY: this pointer is safe to write to, and needs to be written to in order to update the capacity
+        unsafe { (*ptr.as_ptr()).metadata = new_capacity }
+
+        self.ptr = RawThinPtr::from_raw(ptr);
+    }
+
+    fn reserve_inner_move(&mut self, additional: usize) {
+        todo!()
     }
 }
 
@@ -173,4 +264,14 @@ impl<T> Ctor<WithCapacity> for VecData<T> {
             }
         }
     }
+}
+
+#[test]
+fn test() {
+    let mut v = ThinVec::<i32>::new();
+
+    v.reserve(10);
+    v.reserve(90);
+
+    // panic!()
 }

@@ -230,7 +230,8 @@ impl<T: ?Sized, Tag: ?Sized> ConfigValue<T, Tag> {
         Self(true, PhantomData)
     }
 
-    pub(crate) const fn get(self) -> bool {
+    /// Get the value of this config setting
+    pub const fn get(self) -> bool {
         self.0
     }
 
