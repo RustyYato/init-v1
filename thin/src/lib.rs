@@ -23,10 +23,3 @@ pub mod pin_vec;
 pub mod vec;
 
 mod core_ext;
-
-pub fn asm1(v: &mut vec::ThinVec<i32>) -> Option<i32> {
-    v.pop().map(init::Init::into_inner)
-}
-pub fn asm2(v: &mut alloc::vec::Vec<i32>) -> Option<i32> {
-    v.pop()
-}
