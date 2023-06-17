@@ -20,9 +20,12 @@ extern crate std;
 pub mod macros;
 
 pub mod config_value;
-pub mod ctor;
 pub mod layout_provider;
+
+pub mod ctor;
 pub mod pin_ctor;
+pub mod try_ctor;
+pub mod try_pin_ctor;
 
 mod ext;
 mod pin_ptr;
@@ -36,8 +39,6 @@ pub mod boxed;
 mod hacks;
 pub mod pin_slice;
 pub mod slice;
-pub mod try_ctor;
-pub mod try_pin_ctor;
 
 pub use ctor::{ctor, Ctor, CtorArgs};
 pub use pin_ctor::{pin_ctor, PinCtor, PinCtorArgs};
