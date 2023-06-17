@@ -49,6 +49,12 @@ impl<T> Ctor for MaybeUninit<T> {
     fn init(uninit: Uninit<'_, Self>, (): ()) -> Init<'_, Self> {
         uninit.uninit()
     }
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_args_clone_cheap() -> bool {
+        true
+    }
 }
 
 struct CtorFn<F, T: ?Sized>(F, PhantomData<T>);

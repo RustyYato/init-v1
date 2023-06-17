@@ -56,6 +56,12 @@ impl<T> TryCtor for MaybeUninit<T> {
     fn try_init(uninit: Uninit<'_, Self>, (): ()) -> Result<Init<'_, Self>, Self::Error> {
         Ok(uninit.uninit())
     }
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_args_clone_cheap() -> bool {
+        true
+    }
 }
 
 struct TryCtorFn<F, T: ?Sized>(F, PhantomData<T>);
