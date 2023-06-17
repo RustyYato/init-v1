@@ -20,7 +20,7 @@ pub trait Ctor<Args = ()> {
 }
 
 /// A type which can construct a `T`
-pub trait CtorArgs<T: ?Sized>: Sized {
+pub trait CtorArgs<T: ?Sized> {
     /// Initialize a the type `T` using `self`
     fn init_into(self, uninit: Uninit<'_, T>) -> Init<'_, T>;
 }

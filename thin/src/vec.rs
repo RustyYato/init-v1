@@ -7,7 +7,7 @@ use std::ops::RangeBounds;
 
 use alloc::alloc::handle_alloc_error;
 use init::{
-    interface::MoveCtor,
+    ctor::MoveCtor,
     layout_provider::{HasLayoutProvider, LayoutProvider},
     Ctor, Init,
 };

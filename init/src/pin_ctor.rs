@@ -20,7 +20,7 @@ pub trait PinCtor<Args = ()> {
 }
 
 /// A type which can construct a `T`
-pub trait PinCtorArgs<T: ?Sized>: Sized {
+pub trait PinCtorArgs<T: ?Sized> {
     /// Initialize a the type `T` using `self`
     fn pin_init_into(self, uninit: Uninit<'_, T>) -> PinInit<'_, T>;
 }

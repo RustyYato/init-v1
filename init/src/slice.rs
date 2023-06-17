@@ -4,7 +4,7 @@ use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
     config_value::{CloneTag, ConfigValue, MoveTag, TakeTag},
-    interface::{CloneCtor, MoveCtor, TakeCtor},
+    ctor::{CloneCtor, MoveCtor, TakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider},
     slice_writer::SliceWriter,
     Ctor,

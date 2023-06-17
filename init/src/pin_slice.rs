@@ -5,7 +5,7 @@ use core::{alloc::Layout, mem::MaybeUninit, pin::Pin, ptr::NonNull};
 use crate::{
     config_value::{ConfigValue, PinCloneTag, PinMoveTag, PinTakeTag},
     layout_provider::{HasLayoutProvider, LayoutProvider},
-    pin_interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
+    pin_ctor::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
     pin_slice_writer::PinSliceWriter,
     PinCtor,
 };

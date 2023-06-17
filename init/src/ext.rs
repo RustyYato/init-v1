@@ -2,9 +2,9 @@ use core::{alloc::Layout, pin::Pin};
 
 use crate::{
     config_value::{CloneTag, ConfigValue, MoveTag, PinCloneTag, PinMoveTag, PinTakeTag, TakeTag},
-    interface::{CloneCtor, MoveCtor, TakeCtor},
+    ctor::{CloneCtor, MoveCtor, TakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider},
-    pin_interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
+    pin_ctor::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
     Ctor,
 };
 

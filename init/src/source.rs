@@ -6,8 +6,8 @@ use crate::{CtorArgs, Init, PinCtorArgs, PinInit, Uninit};
 
 use crate::layout_provider::{HasLayoutProvider, LayoutProvider};
 
-use crate::interface::{CloneCtor, MoveCtor, TakeCtor};
-use crate::pin_interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor};
+use crate::ctor::{CloneCtor, MoveCtor, TakeCtor};
+use crate::pin_ctor::{PinCloneCtor, PinMoveCtor, PinTakeCtor};
 
 /// The layout provider for the `_` argument
 pub struct SourceLayoutProvider;
