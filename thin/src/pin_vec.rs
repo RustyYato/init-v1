@@ -336,7 +336,8 @@ impl<T: PinMoveCtor> ThinPinVec<T> {
             self.ptr = RawThinPtr::from_raw(new_ptr);
         }
 
-        // SAFETY:
+        // SAFETY: The pointer is guaranteed to be valid be ThinPinVec
+        // the capacity is correct and fits the allocation
         unsafe { (*self.ptr.as_mut_with_header_ptr()).metadata = new_capacity }
     }
 
