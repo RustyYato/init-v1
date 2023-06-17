@@ -49,3 +49,55 @@ pub use pin_ptr::{IterPinInit, PinInit};
 pub use ptr::{Init, IterInit, IterUninit, Uninit};
 pub use try_ctor::{try_ctor, TryCtor, TryCtorArgs};
 pub use try_pin_ctor::{try_pin_ctor, TryPinCtor, TryPinCtorArgs};
+
+/// Try to initialize a value on the stack
+pub fn try_stack_init<Args, F: FnOnce(Init<'_, T>) -> R, T: TryCtor<Args>, R>(
+    args: Args,
+    f: F,
+) -> Result<R, T::Error> {
+    let mut slot = core::mem::MaybeUninit::<T>::uninit();
+    let uninit = Uninit::from_ref(&mut slot).project();
+    let output = match uninit.try_init(args) {
+        Ok(value) => Ok(f(value)),
+        Err(err) => Err(err),
+    };
+    output
+}
+
+/// Initialize a value on the stack
+pub fn stack_init<Args, F: FnOnce(Init<'_, T>) -> R, T: Ctor<Args>, R>(args: Args, f: F) -> R {
+    match try_stack_init(try_ctor::of_ctor(args), f) {
+        Ok(value) => value,
+        Err(inf) => match inf {},
+    }
+}
+
+/// Try to initialize a value on the stack
+pub fn try_stack_pin_init<Args, F: FnOnce(core::pin::Pin<&mut T>) -> R, T: TryPinCtor<Args>, R>(
+    args: Args,
+    f: F,
+) -> Result<R, T::Error> {
+    let mut slot = core::mem::MaybeUninit::<T>::uninit();
+    let uninit = Uninit::from_ref(&mut slot).project();
+    let output = match uninit.try_pin_init(args) {
+        Err(err) => Err(err),
+        Ok(value) => {
+            let value =
+                // SAFETY: T is in the pinned type-state
+                unsafe { core::pin::Pin::new_unchecked(value.into_inner_unchecked().into_mut()) };
+            Ok(f(value))
+        }
+    };
+    output
+}
+
+/// Initialize a value on the stack
+pub fn stack_pin_init<Args, F: FnOnce(core::pin::Pin<&mut T>) -> R, T: PinCtor<Args>, R>(
+    args: Args,
+    f: F,
+) -> R {
+    match try_stack_pin_init(try_pin_ctor::of_pin_ctor(args), f) {
+        Ok(value) => value,
+        Err(inf) => match inf {},
+    }
+}

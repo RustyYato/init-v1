@@ -85,6 +85,12 @@ impl<'a, T> Uninit<'a, MaybeUninit<T>> {
         // SAFETY: `MaybeUninit` may safely point to uninitialized memory
         unsafe { self.assume_init() }
     }
+
+    /// Convert an `Uninit<MU<T>>` to a `Uninit<T>`
+    pub fn project(self) -> Uninit<'a, T> {
+        // SAFETY: `MaybeUninit<T>` and `T` have the same layout
+        unsafe { Uninit::from_raw(self.into_raw().cast()) }
+    }
 }
 
 impl<'a, T> Uninit<'a, [MaybeUninit<T>]> {
