@@ -136,12 +136,17 @@ impl<'a, T> PinSliceWriter<'a, T> {
 
     /// Write the next element of the slice (write goes in order, from 0 -> len)
     pub fn finish(self) -> PinInit<'a, [T]> {
-        if !self.is_complete() {
-            incomplete_error()
-        }
+        self.try_finish().unwrap_or_else(|| incomplete_error())
+    }
 
-        // SAFETY: This writer is complete
-        unsafe { self.finish_unchecked() }
+    /// Write the next element of the slice (write goes in order, from 0 -> len)
+    pub fn try_finish(self) -> Option<PinInit<'a, [T]>> {
+        if self.is_complete() {
+            // SAFETY: This writer is complete
+            Some(unsafe { self.finish_unchecked() })
+        } else {
+            None
+        }
     }
 
     /// Write the next element of the slice (write goes in order, from 0 -> len)

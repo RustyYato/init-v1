@@ -197,3 +197,73 @@ impl<T: TryPinCtor<Args>, Args: Clone> TryPinCtor<CloneArgsLen<Args>> for [T] {
 
 /// A layout provider for slices
 pub struct SliceLenLayoutProvider;
+
+/// An initializer argument to initialize a slice with the items of the iterator
+///
+/// NOTE: this will take at most enough elements as needed to fill up the slice, and no more
+///
+/// The initializer will error if not enough elements are passed in to completely fill up the slice
+pub struct IterInit<I>(I);
+
+/// An error for the [`IterInit`] type
+pub enum IterInitError<E> {
+    /// If not enough elements were in the iterator to fill up the slice
+    NotEnoughItems,
+    /// If any item in the slice failed to initialize
+    InitError(E),
+}
+
+impl<T: TryPinCtor<I::Item>, I: Iterator> TryPinCtor<IterInit<I>> for [T] {
+    type Error = IterInitError<T::Error>;
+
+    fn try_pin_init(
+        uninit: crate::Uninit<'_, Self>,
+        IterInit(args): IterInit<I>,
+    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
+        let mut writer = PinSliceWriter::new(uninit);
+
+        args.take(writer.remaining_len())
+            // SAFETY: we take up to the remaining length of the writer elements, which means if the closure is called
+            // there is enough space in the writer to initialize an element
+            .try_for_each(|arg| unsafe { writer.try_pin_init_unchecked(arg) })
+            .map_err(IterInitError::InitError)?;
+
+        writer.try_finish().ok_or(IterInitError::NotEnoughItems)
+    }
+}
+
+/// An initializer argument to initialize a slice with the items of the iterator
+///
+/// NOTE: this will take at most enough elements as needed to fill up the slice, and no more
+///
+/// The initializer will error if not enough elements are passed in to completely fill up the slice
+pub struct IterLenInit<I>(pub usize, pub I);
+
+impl<I: ExactSizeIterator> IterLenInit<I> {
+    /// Create a new `IterLenInit` form an [`ExactSizeIterator`]
+    pub fn new(iter: I) -> Self {
+        Self(iter.len(), iter)
+    }
+}
+
+// SAFETY: The layout is compatible with cast
+unsafe impl<T, I> LayoutProvider<[T], IterLenInit<I>> for SliceLenLayoutProvider {
+    fn layout_of(args: &IterLenInit<I>) -> Option<Layout> {
+        Layout::array::<T>(args.0).ok()
+    }
+
+    unsafe fn cast(ptr: NonNull<u8>, args: &IterLenInit<I>) -> NonNull<[T]> {
+        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
+    }
+}
+
+impl<T: TryPinCtor<I::Item>, I: Iterator> TryPinCtor<IterLenInit<I>> for [T] {
+    type Error = IterInitError<T::Error>;
+
+    fn try_pin_init(
+        uninit: crate::Uninit<'_, Self>,
+        IterLenInit(_, args): IterLenInit<I>,
+    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
+        uninit.try_pin_init(IterInit(args))
+    }
+}

@@ -138,14 +138,18 @@ impl<'a, T> SliceWriter<'a, T> {
 
     /// Write the next element of the slice (write goes in order, from 0 -> len)
     pub fn finish(self) -> Init<'a, [T]> {
-        if !self.is_complete() {
-            incomplete_error()
-        }
-
-        // SAFETY: This writer is complete
-        unsafe { self.finish_unchecked() }
+        self.try_finish().unwrap_or_else(|| incomplete_error())
     }
 
+    /// Write the next element of the slice (write goes in order, from 0 -> len)
+    pub fn try_finish(self) -> Option<Init<'a, [T]>> {
+        if self.is_complete() {
+            // SAFETY: This writer is complete
+            Some(unsafe { self.finish_unchecked() })
+        } else {
+            None
+        }
+    }
     /// Write the next element of the slice (write goes in order, from 0 -> len)
     ///
     /// # Safety
