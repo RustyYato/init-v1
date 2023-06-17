@@ -23,12 +23,24 @@ pub trait Ctor<Args = ()> {
 pub trait CtorArgs<T: ?Sized> {
     /// Initialize a the type `T` using `self`
     fn init_into(self, uninit: Uninit<'_, T>) -> Init<'_, T>;
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_clone_cheap() -> bool {
+        false
+    }
 }
 
 impl<T: ?Sized, Args: CtorArgs<T>> Ctor<Args> for T {
     #[inline]
     fn init(uninit: Uninit<'_, Self>, args: Args) -> Init<'_, Self> {
         args.init_into(uninit)
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_args_clone_cheap() -> bool {
+        Args::__is_clone_cheap()
     }
 }
 

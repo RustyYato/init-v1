@@ -1,0 +1,199 @@
+//! Constructors for slices
+
+use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
+
+use crate::{
+    layout_provider::{HasLayoutProvider, LayoutProvider},
+    slice_writer::SliceWriter,
+    TryCtor,
+};
+
+impl<T: TryCtor> TryCtor for [T] {
+    type Error = T::Error;
+
+    fn try_init(
+        uninit: crate::Uninit<'_, Self>,
+        (): (),
+    ) -> Result<crate::Init<'_, Self>, Self::Error> {
+        uninit.try_init(CopyArgs(()))
+    }
+}
+
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub struct UninitSliceLen(pub usize);
+
+impl<T> HasLayoutProvider<UninitSliceLen> for [MaybeUninit<T>] {
+    type LayoutProvider = SliceLenLayoutProvider;
+}
+
+// SAFETY: The layout is compatible with cast
+unsafe impl<T> LayoutProvider<[MaybeUninit<T>], UninitSliceLen> for SliceLenLayoutProvider {
+    fn layout_of(args: &UninitSliceLen) -> Option<core::alloc::Layout> {
+        Layout::array::<T>(args.0).ok()
+    }
+
+    unsafe fn cast(ptr: NonNull<u8>, args: &UninitSliceLen) -> NonNull<[MaybeUninit<T>]> {
+        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
+    }
+}
+
+impl<T> TryCtor<UninitSliceLen> for [MaybeUninit<T>] {
+    type Error = core::convert::Infallible;
+
+    #[inline]
+    fn try_init(
+        uninit: crate::Uninit<'_, Self>,
+        _: UninitSliceLen,
+    ) -> Result<crate::Init<'_, Self>, Self::Error> {
+        Ok(uninit.uninit_slice())
+    }
+}
+
+/// A slice constructor which copies the argument and uses it to construct each element of the slice
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub struct CopyArgs<Args>(pub Args);
+
+impl<T: TryCtor<Args>, Args: Copy> TryCtor<CopyArgs<Args>> for [T] {
+    type Error = T::Error;
+
+    fn try_init(
+        uninit: crate::Uninit<'_, Self>,
+        CopyArgs(args): CopyArgs<Args>,
+    ) -> Result<crate::Init<'_, Self>, Self::Error> {
+        let mut writer = SliceWriter::new(uninit);
+
+        while !writer.is_complete() {
+            // SAFETY: The write isn't complete
+            unsafe { writer.try_init_unchecked(args)? }
+        }
+
+        // SAFETY: the writer is complete
+        Ok(unsafe { writer.finish_unchecked() })
+    }
+}
+
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy)]
+pub struct CloneArgs<Args>(pub Args);
+
+impl<T: TryCtor<Args>, Args: Clone> TryCtor<CloneArgs<Args>> for [T] {
+    type Error = T::Error;
+
+    fn try_init(
+        uninit: crate::Uninit<'_, Self>,
+        CloneArgs(args): CloneArgs<Args>,
+    ) -> Result<crate::Init<'_, Self>, Self::Error> {
+        let mut writer = SliceWriter::new(uninit);
+
+        if T::__is_args_clone_cheap() {
+            while !writer.is_complete() {
+                // SAFETY: The write isn't complete
+                unsafe { writer.try_init_unchecked(args.clone())? }
+            }
+        } else {
+            loop {
+                match writer.remaining_len() {
+                    0 => break,
+                    1 => {
+                        writer.try_init(args)?;
+                        break;
+                    }
+                    _ => writer.try_init(args.clone())?,
+                }
+            }
+        }
+
+        Ok(writer.finish())
+    }
+}
+
+/// A slice constructor which copies the argument and uses it to construct each element of the slice
+///
+/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
+#[derive(Debug, Clone, Copy)]
+pub struct CopyArgsLen<Args>(pub usize, pub Args);
+
+impl<T: TryCtor<Args>, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T]
+where
+    T: HasLayoutProvider<Args>,
+{
+    type LayoutProvider = SliceLenLayoutProvider;
+}
+
+// SAFETY: The layout is compatible with cast
+unsafe impl<T, Args: Copy> LayoutProvider<[T], CopyArgsLen<Args>> for SliceLenLayoutProvider
+where
+    T: HasLayoutProvider<Args>,
+{
+    fn layout_of(args: &CopyArgsLen<Args>) -> Option<Layout> {
+        Layout::array::<T>(args.0).ok()
+    }
+
+    unsafe fn cast(ptr: NonNull<u8>, args: &CopyArgsLen<Args>) -> NonNull<[T]> {
+        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
+    }
+
+    fn is_zeroed(CopyArgsLen(_, args): &CopyArgsLen<Args>) -> bool {
+        crate::layout_provider::is_zeroed::<T, Args>(args)
+    }
+}
+
+impl<T: TryCtor<Args>, Args: Copy> TryCtor<CopyArgsLen<Args>> for [T] {
+    type Error = T::Error;
+
+    fn try_init(
+        uninit: crate::Uninit<'_, Self>,
+        CopyArgsLen(_, args): CopyArgsLen<Args>,
+    ) -> Result<crate::Init<'_, Self>, Self::Error> {
+        uninit.try_init(CopyArgs(args))
+    }
+}
+
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
+///
+/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
+#[derive(Debug, Clone, Copy)]
+pub struct CloneArgsLen<Args>(pub usize, pub Args);
+
+impl<T, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T]
+where
+    T: HasLayoutProvider<Args>,
+{
+    type LayoutProvider = SliceLenLayoutProvider;
+}
+
+// SAFETY: The layout is compatible with cast
+unsafe impl<T, Args: Clone> LayoutProvider<[T], CloneArgsLen<Args>> for SliceLenLayoutProvider
+where
+    T: HasLayoutProvider<Args>,
+{
+    fn layout_of(args: &CloneArgsLen<Args>) -> Option<Layout> {
+        Layout::array::<T>(args.0).ok()
+    }
+
+    unsafe fn cast(ptr: NonNull<u8>, args: &CloneArgsLen<Args>) -> NonNull<[T]> {
+        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
+    }
+
+    fn is_zeroed(CloneArgsLen(_, args): &CloneArgsLen<Args>) -> bool {
+        crate::layout_provider::is_zeroed::<T, Args>(args)
+    }
+}
+
+impl<T: TryCtor<Args>, Args: Clone> TryCtor<CloneArgsLen<Args>> for [T] {
+    type Error = T::Error;
+
+    fn try_init(
+        uninit: crate::Uninit<'_, Self>,
+        CloneArgsLen(_, args): CloneArgsLen<Args>,
+    ) -> Result<crate::Init<'_, Self>, Self::Error> {
+        uninit.try_init(CloneArgs(args))
+    }
+}
+
+/// A layout provider for slices
+pub struct SliceLenLayoutProvider;

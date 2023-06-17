@@ -2,7 +2,7 @@
 
 use core::mem::ManuallyDrop;
 
-use crate::{ptr::IterUninit, Ctor, Init, Uninit};
+use crate::{ptr::IterUninit, Ctor, Init, TryCtor, Uninit};
 
 /// A helper type to incrementally initialize a slice
 ///
@@ -67,6 +67,16 @@ impl<'a, T> SliceWriter<'a, T> {
     }
 
     /// Write the next element of the slice (write goes in order, from 0 -> len)
+    pub fn try_init<Args>(&mut self, args: Args) -> Result<(), T::Error>
+    where
+        T: TryCtor<Args>,
+    {
+        assert!(!self.is_complete());
+        // SAFETY: this writer isn't complete
+        unsafe { self.try_init_unchecked(args) }
+    }
+
+    /// Write the next element of the slice (write goes in order, from 0 -> len)
     ///
     /// # Safety
     ///
@@ -82,6 +92,25 @@ impl<'a, T> SliceWriter<'a, T> {
         // We take ownership of the newly constructed value
         core::mem::forget(init);
         self.init += 1;
+    }
+
+    /// Write the next element of the slice (write goes in order, from 0 -> len)
+    ///
+    /// # Safety
+    ///
+    /// This writer must not be complete
+    pub unsafe fn try_init_unchecked<Args>(&mut self, args: Args) -> Result<(), T::Error>
+    where
+        T: TryCtor<Args>,
+    {
+        debug_assert!(!self.is_complete());
+        // SAFETY: The caller guarantees that this writer isn't complete,
+        // which ensure that the iterator isn't empty
+        let init = unsafe { self.iter.next_unchecked() }.try_init(args)?;
+        // We take ownership of the newly constructed value
+        core::mem::forget(init);
+        self.init += 1;
+        Ok(())
     }
 
     /// # Safety

@@ -7,6 +7,7 @@ use crate::{
     ctor::{CloneCtor, MoveCtor, TakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider},
     slice_writer::SliceWriter,
+    try_ctor::{of_ctor, to_ctor},
     Ctor,
 };
 
@@ -54,15 +55,7 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
         uninit: crate::Uninit<'_, Self>,
         CopyArgs(args): CopyArgs<Args>,
     ) -> crate::Init<'_, Self> {
-        let mut writer = SliceWriter::new(uninit);
-
-        while !writer.is_complete() {
-            // SAFETY: The write isn't complete
-            unsafe { writer.init_unchecked(args) }
-        }
-
-        // SAFETY: the writer is complete
-        unsafe { writer.finish_unchecked() }
+        uninit.init(to_ctor(crate::try_slice::CopyArgs(of_ctor(args))))
     }
 }
 
@@ -77,27 +70,7 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
         uninit: crate::Uninit<'_, Self>,
         CloneArgs(args): CloneArgs<Args>,
     ) -> crate::Init<'_, Self> {
-        let mut writer = SliceWriter::new(uninit);
-
-        if T::__is_args_clone_cheap() {
-            while !writer.is_complete() {
-                // SAFETY: The write isn't complete
-                unsafe { writer.init_unchecked(args.clone()) }
-            }
-        } else {
-            loop {
-                match writer.remaining_len() {
-                    0 => break,
-                    1 => {
-                        writer.init(args);
-                        break;
-                    }
-                    _ => writer.init(args.clone()),
-                }
-            }
-        }
-
-        writer.finish()
+        uninit.init(to_ctor(crate::try_slice::CloneArgs(of_ctor(args))))
     }
 }
 
@@ -107,7 +80,7 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgsLen<Args>(pub usize, pub Args);
 
-impl<T: Ctor<Args>, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T]
+impl<T, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T]
 where
     T: HasLayoutProvider<Args>,
 {
@@ -115,8 +88,7 @@ where
 }
 
 // SAFETY: The layout is compatible with cast
-unsafe impl<T: Ctor<Args>, Args: Copy> LayoutProvider<[T], CopyArgsLen<Args>>
-    for SliceLenLayoutProvider
+unsafe impl<T, Args: Copy> LayoutProvider<[T], CopyArgsLen<Args>> for SliceLenLayoutProvider
 where
     T: HasLayoutProvider<Args>,
 {
@@ -149,7 +121,7 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgsLen<Args>> for [T] {
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgsLen<Args>(pub usize, pub Args);
 
-impl<T: Ctor<Args>, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T]
+impl<T, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T]
 where
     T: HasLayoutProvider<Args>,
 {
@@ -157,8 +129,7 @@ where
 }
 
 // SAFETY: The layout is compatible with cast
-unsafe impl<T: Ctor<Args>, Args: Clone> LayoutProvider<[T], CloneArgsLen<Args>>
-    for SliceLenLayoutProvider
+unsafe impl<T, Args: Clone> LayoutProvider<[T], CloneArgsLen<Args>> for SliceLenLayoutProvider
 where
     T: HasLayoutProvider<Args>,
 {
