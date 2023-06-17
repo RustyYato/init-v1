@@ -184,6 +184,15 @@ impl<'a, T: ?Sized> Init<'a, T> {
         // SAFETY: The pointer is aligned, non-null, and initialized
         unsafe { &mut *self.as_mut_ptr() }
     }
+
+    /// Convert an `Uninit` into a mutable reference
+    #[inline]
+    pub fn into_mut(self) -> &'a mut T {
+        let ptr = self.into_raw();
+
+        // SAFETY: this pointer is valid for reads/writes and is unique
+        unsafe { &mut *ptr }
+    }
 }
 
 impl<'a, T> Init<'a, [T]> {
