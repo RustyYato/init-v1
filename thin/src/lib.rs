@@ -15,8 +15,11 @@ extern crate alloc;
 extern crate std;
 
 pub mod boxed;
-pub mod pin_vec;
 pub mod ptr;
+
+#[cfg(feature = "alloc")]
+pub mod pin_vec;
+#[cfg(feature = "alloc")]
 pub mod vec;
 
 mod core_ext;

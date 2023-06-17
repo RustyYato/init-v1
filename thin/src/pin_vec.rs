@@ -3,7 +3,7 @@
 //! and guarantees that the values will be dropped before the underling memory is freed
 #![forbid(clippy::undocumented_unsafe_blocks)]
 
-use std::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
+use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
 use alloc::alloc::handle_alloc_error;
 use init::{
@@ -295,7 +295,7 @@ impl<T: PinMoveCtor> ThinPinVec<T> {
 
         if self.capacity() == 0 {
             self.reserve_first(new_capacity)
-        } else if self.is_empty() && T::IS_MOVE_TRIVIAL.get() {
+        } else if self.is_empty() || T::IS_MOVE_TRIVIAL.get() {
             self.reserve_realloc(new_capacity)
         } else {
             self.reserve_move(new_capacity)
@@ -312,22 +312,32 @@ impl<T: PinMoveCtor> ThinPinVec<T> {
 
         let prefix = Layout::new::<[usize; 2]>();
 
-        let old_layout = prefix.extend(old_layout).unwrap().0;
-        let new_layout = prefix.extend(new_layout).unwrap().0;
+        let old_layout = prefix.extend(old_layout).unwrap().0.pad_to_align();
+        let new_layout = prefix.extend(new_layout).unwrap().0.pad_to_align();
 
-        let ptr = self.ptr.as_erased_mut_ptr();
+        let capacity = (new_layout.size() - prefix.size()) / core::mem::size_of::<T>();
+        debug_assert!(new_capacity >= capacity);
+        let new_capacity = capacity;
 
-        // SAFETY: The old_layout is the same used to allocate this vector
-        // and the new_layout has the same alignment and is non-empty
-        let new_ptr = unsafe { alloc::alloc::realloc(ptr.cast(), old_layout, new_layout.size()) };
+        if old_layout != new_layout {
+            let ptr = self.ptr.as_erased_mut_ptr();
 
-        let new_ptr = core::ptr::slice_from_raw_parts_mut(new_ptr, new_capacity) as *mut _;
+            let new_ptr =
+                // SAFETY: The old_layout is the same used to allocate this vector
+                // and the new_layout has the same alignment and is non-empty
+                unsafe { alloc::alloc::realloc(ptr.cast(), old_layout, new_layout.size()) };
 
-        let Some(new_ptr) =  NonNull::new(new_ptr) else {
-            handle_alloc_error(new_layout)
-        };
+            let new_ptr = core::ptr::slice_from_raw_parts_mut(new_ptr, new_capacity) as *mut _;
 
-        self.ptr = RawThinPtr::from_raw(new_ptr)
+            let Some(new_ptr) =  NonNull::new(new_ptr) else {
+                handle_alloc_error(new_layout)
+            };
+
+            self.ptr = RawThinPtr::from_raw(new_ptr);
+        }
+
+        // SAFETY:
+        unsafe { (*self.ptr.as_mut_with_header_ptr()).metadata = new_capacity }
     }
 
     fn reserve_move(&mut self, new_capacity: usize) {
@@ -408,13 +418,13 @@ impl<T> Ctor<WithCapacity> for VecData<T> {
 
 #[test]
 fn test_pin_vec() {
-    let mut vec = ThinPinVec::new();
+    let mut vec = ThinPinVec::<u8>::new();
 
     for i in 0..100 {
         vec.emplace(i);
     }
 
     for (i, &x) in vec.as_slice().iter().enumerate() {
-        assert_eq!(i, x);
+        assert_eq!(i, x as usize);
     }
 }

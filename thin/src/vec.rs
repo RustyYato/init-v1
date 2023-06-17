@@ -2,8 +2,8 @@
 
 mod iter;
 
+use core::ops::RangeBounds;
 use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
-use std::ops::RangeBounds;
 
 use alloc::alloc::handle_alloc_error;
 use init::{
