@@ -1,8 +1,10 @@
 use core::{alloc::Layout, pin::Pin};
 
 use crate::{
-    interface::{CloneCtor, MoveCtor, PinCloneCtor, PinMoveCtor, PinTakeCtor, TakeCtor},
+    config_value::{CloneTag, ConfigValue, MoveTag, PinCloneTag, PinMoveTag, PinTakeTag, TakeTag},
+    interface::{CloneCtor, MoveCtor, TakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider},
+    pin_interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
     Ctor,
 };
 
@@ -134,9 +136,9 @@ macro_rules! primitive {
         }
 
         impl MoveCtor for $ty {
-            const IS_MOVE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::MoveTag> = {
+            const IS_MOVE_TRIVIAL: ConfigValue<Self, MoveTag> = {
                 // SAFETY: all primitive types are trivially movable
-                unsafe { crate::interface::ConfigValue::yes() }
+                unsafe { ConfigValue::yes() }
             };
             #[inline]
             fn move_ctor<'this>(
@@ -148,9 +150,9 @@ macro_rules! primitive {
         }
 
         impl TakeCtor for $ty {
-            const IS_TAKE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::TakeTag> = {
+            const IS_TAKE_TRIVIAL: ConfigValue<Self, TakeTag> = {
                 // SAFETY: all primitive types are trivially takable
-                unsafe { crate::interface::ConfigValue::yes() }
+                unsafe { ConfigValue::yes() }
             };
 
             #[inline]
@@ -163,9 +165,9 @@ macro_rules! primitive {
         }
 
         impl CloneCtor for $ty {
-            const IS_CLONE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::CloneTag> = {
+            const IS_CLONE_TRIVIAL: ConfigValue<Self, CloneTag> = {
                 // SAFETY: all primitive types are trivially clone-able
-                unsafe { crate::interface::ConfigValue::yes() }
+                unsafe { ConfigValue::yes() }
             };
 
             #[inline]
@@ -175,9 +177,9 @@ macro_rules! primitive {
         }
 
         impl PinMoveCtor for $ty {
-            const IS_MOVE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinMoveTag> = {
+            const IS_MOVE_TRIVIAL: ConfigValue<Self, PinMoveTag> = {
                 // SAFETY: all primitive types are trivially movable
-                unsafe { crate::interface::ConfigValue::yes() }
+                unsafe { ConfigValue::yes() }
             };
 
             #[inline]
@@ -190,9 +192,9 @@ macro_rules! primitive {
         }
 
         impl PinTakeCtor for $ty {
-            const IS_TAKE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinTakeTag> = {
+            const IS_TAKE_TRIVIAL: ConfigValue<Self, PinTakeTag> = {
                 // SAFETY: all primitive types are trivially takable
-                unsafe { crate::interface::ConfigValue::yes() }
+                unsafe { ConfigValue::yes() }
             };
 
             #[inline]
@@ -205,9 +207,9 @@ macro_rules! primitive {
         }
 
         impl PinCloneCtor for $ty {
-            const IS_CLONE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinCloneTag> = {
+            const IS_CLONE_TRIVIAL: ConfigValue<Self, PinCloneTag> = {
                 // SAFETY: all primitive types are trivially clone-able
-                unsafe { crate::interface::ConfigValue::yes() }
+                unsafe { ConfigValue::yes() }
             };
 
             #[inline]

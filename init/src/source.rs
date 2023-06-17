@@ -1,10 +1,13 @@
+//! A module to define a type which allows getting the layout from some other value as a source
+
 use core::{alloc::Layout, pin::Pin, ptr::NonNull};
 
 use crate::{CtorArgs, Init, PinCtorArgs, PinInit, Uninit};
 
 use crate::layout_provider::{HasLayoutProvider, LayoutProvider};
 
-use super::{CloneCtor, MoveCtor, PinCloneCtor, PinMoveCtor, PinTakeCtor, TakeCtor};
+use crate::interface::{CloneCtor, MoveCtor, TakeCtor};
+use crate::pin_interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor};
 
 /// The layout provider for the `_` argument
 pub struct SourceLayoutProvider;

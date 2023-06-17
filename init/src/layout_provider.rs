@@ -1,6 +1,6 @@
 //! The interfaces for generic argument based layout calculations
 
-use core::{alloc::Layout, ptr::NonNull};
+use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
 /// see [`LayoutProvider::layout_of`]
 pub fn layout_of<T, Args>(args: &Args) -> Option<Layout>
@@ -95,4 +95,8 @@ unsafe impl<T: HasLayoutProvider<Args>, Args> LayoutProvider<T, Args> for SizedL
     unsafe fn cast(ptr: NonNull<u8>, _: &Args) -> NonNull<T> {
         ptr.cast()
     }
+}
+
+impl<T> HasLayoutProvider for MaybeUninit<T> {
+    type LayoutProvider = SizedLayoutProvider;
 }

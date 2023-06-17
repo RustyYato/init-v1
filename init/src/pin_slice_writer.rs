@@ -2,7 +2,7 @@
 
 use core::mem::ManuallyDrop;
 
-use crate::{interface::PinCtor, ptr::IterUninit, PinInit, Uninit};
+use crate::{pin_interface::PinCtor, ptr::IterUninit, PinInit, Uninit};
 
 /// A helper type to incrementally initialize a slice
 ///

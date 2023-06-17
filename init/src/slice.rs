@@ -3,6 +3,7 @@
 use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
+    config_value::{CloneTag, ConfigValue, MoveTag, TakeTag},
     interface::{CloneCtor, MoveCtor, TakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider},
     slice_writer::SliceWriter,
@@ -188,7 +189,7 @@ impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgsLen<Args>> for [T] {
 pub struct SliceLenLayoutProvider;
 
 impl<T: MoveCtor> MoveCtor for [T] {
-    const IS_MOVE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::MoveTag> = {
+    const IS_MOVE_TRIVIAL: ConfigValue<Self, MoveTag> = {
         // SAFETY: if T is trivially movable then [T] is also trivially movable
         unsafe { T::IS_MOVE_TRIVIAL.cast() }
     };
@@ -221,7 +222,7 @@ impl<T: MoveCtor> MoveCtor for [T] {
 }
 
 impl<T: TakeCtor> TakeCtor for [T] {
-    const IS_TAKE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::TakeTag> = {
+    const IS_TAKE_TRIVIAL: ConfigValue<Self, TakeTag> = {
         // SAFETY: if T is trivially takable then [T] is also trivially takable
         unsafe { T::IS_TAKE_TRIVIAL.cast() }
     };
@@ -252,7 +253,7 @@ impl<T: TakeCtor> TakeCtor for [T] {
 }
 
 impl<T: CloneCtor> CloneCtor for [T] {
-    const IS_CLONE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::CloneTag> = {
+    const IS_CLONE_TRIVIAL: ConfigValue<Self, CloneTag> = {
         // SAFETY: if T is trivially clone-able then [T] is also trivially clone-able
         unsafe { T::IS_CLONE_TRIVIAL.cast() }
     };

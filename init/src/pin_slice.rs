@@ -3,8 +3,9 @@
 use core::{alloc::Layout, mem::MaybeUninit, pin::Pin, ptr::NonNull};
 
 use crate::{
-    interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
+    config_value::{ConfigValue, PinCloneTag, PinMoveTag, PinTakeTag},
     layout_provider::{HasLayoutProvider, LayoutProvider},
+    pin_interface::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
     pin_slice_writer::PinSliceWriter,
     PinCtor,
 };
@@ -188,7 +189,7 @@ impl<T: PinCtor<Args>, Args: Clone> PinCtor<CloneArgsLen<Args>> for [T] {
 pub struct SliceLenLayoutProvider;
 
 impl<T: PinMoveCtor> PinMoveCtor for [T] {
-    const IS_MOVE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinMoveTag> = {
+    const IS_MOVE_TRIVIAL: ConfigValue<Self, PinMoveTag> = {
         // SAFETY: if T is trivially movable then [T] is also trivially movable
         unsafe { T::IS_MOVE_TRIVIAL.cast() }
     };
@@ -221,7 +222,7 @@ impl<T: PinMoveCtor> PinMoveCtor for [T] {
 }
 
 impl<T: PinTakeCtor> PinTakeCtor for [T] {
-    const IS_TAKE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinTakeTag> = {
+    const IS_TAKE_TRIVIAL: ConfigValue<Self, PinTakeTag> = {
         // SAFETY: if T is trivially takable then [T] is also trivially takable
         unsafe { T::IS_TAKE_TRIVIAL.cast() }
     };
@@ -255,7 +256,7 @@ impl<T: PinTakeCtor> PinTakeCtor for [T] {
 }
 
 impl<T: PinCloneCtor> PinCloneCtor for [T] {
-    const IS_CLONE_TRIVIAL: crate::interface::ConfigValue<Self, crate::interface::PinCloneTag> = {
+    const IS_CLONE_TRIVIAL: ConfigValue<Self, PinCloneTag> = {
         // SAFETY: if T is trivially clone-able then [T] is also trivially clone-able
         unsafe { T::IS_CLONE_TRIVIAL.cast() }
     };

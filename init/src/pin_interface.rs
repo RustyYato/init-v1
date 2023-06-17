@@ -1,16 +1,16 @@
-//! The core interfaces used to initialize types
+//! The core interfaces used to pin-initialize types
 
-use core::{marker::PhantomData, mem::MaybeUninit};
+use core::{marker::PhantomData, pin::Pin};
 
 use crate::{
-    config_value::{CloneTag, ConfigValue, MoveTag, TakeTag},
-    Init, Uninit,
+    config_value::{ConfigValue, PinCloneTag, PinMoveTag, PinTakeTag},
+    PinInit, Uninit,
 };
 
 /// A type which is constructable using `Args`
-pub trait Ctor<Args = ()> {
+pub trait PinCtor<Args = ()> {
     /// Initialize a the type `Self` using `args: Args`
-    fn init(uninit: Uninit<'_, Self>, args: Args) -> Init<'_, Self>;
+    fn pin_init(uninit: Uninit<'_, Self>, args: Args) -> PinInit<'_, Self>;
 
     #[inline]
     #[doc(hidden)]
@@ -20,30 +20,23 @@ pub trait Ctor<Args = ()> {
 }
 
 /// A type which can construct a `T`
-pub trait CtorArgs<T: ?Sized>: Sized {
+pub trait PinCtorArgs<T: ?Sized>: Sized {
     /// Initialize a the type `T` using `self`
-    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T>;
+    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T>;
 }
 
-impl<T: ?Sized, Args: CtorArgs<T>> Ctor<Args> for T {
+impl<T: ?Sized, Args: PinCtorArgs<T>> PinCtor<Args> for T {
     #[inline]
-    fn init(uninit: Uninit<'_, Self>, args: Args) -> Init<'_, Self> {
-        args.init_with(uninit)
+    fn pin_init(uninit: Uninit<'_, Self>, args: Args) -> PinInit<'_, Self> {
+        args.pin_init_with(uninit)
     }
 }
 
-impl<T> Ctor for MaybeUninit<T> {
-    #[inline]
-    fn init(uninit: Uninit<'_, Self>, (): ()) -> Init<'_, Self> {
-        uninit.uninit()
-    }
-}
+struct PinCtorFn<F, T: ?Sized>(F, PhantomData<T>);
 
-struct CtorFn<F, T: ?Sized>(F, PhantomData<T>);
-
-impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Init<'_, T>> CtorArgs<T> for CtorFn<F, T> {
+impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> PinInit<'_, T>> PinCtorArgs<T> for PinCtorFn<F, T> {
     #[inline]
-    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
+    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
         (self.0)(uninit)
     }
 }
@@ -52,26 +45,26 @@ impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Init<'_, T>> CtorArgs<T> for CtorFn<
 ///
 /// Rust's type inference doesn't understand the indirection from
 /// `FnOnce()` to `CtorArgs` to `Ctor`, so use this no-op to guide inference
-pub fn ctor<T: ?Sized, F: FnOnce(Uninit<T>) -> Init<T>>(f: F) -> impl CtorArgs<T> {
-    CtorFn(f, PhantomData)
+pub fn pin_ctor<T: ?Sized, F: FnOnce(Uninit<T>) -> PinInit<T>>(f: F) -> impl PinCtorArgs<T> {
+    PinCtorFn(f, PhantomData)
 }
 
-/// An interface to "move" values without any temporaries
-pub trait MoveCtor {
+/// An interface to "move" pinned values in a type-safe way
+pub trait PinMoveCtor {
     /// If `pin_move_ctor` can be simulated by a memcpy
     ///
     /// # Safety for implementors
     ///
     /// you may only answer yes if there are no side-effects to moving the value
     /// and if there are no self-references that need to be handled
-    const IS_MOVE_TRIVIAL: ConfigValue<Self, MoveTag> = ConfigValue::no();
+    const IS_MOVE_TRIVIAL: ConfigValue<Self, PinMoveTag> = ConfigValue::no();
 
     /// "moves" the value in `p` to `uninit`
-    fn move_ctor<'this>(uninit: Uninit<'this, Self>, p: Init<Self>) -> Init<'this, Self>;
+    fn pin_move_ctor<'this>(uninit: Uninit<'this, Self>, p: PinInit<Self>) -> PinInit<'this, Self>;
 }
 
-/// An interface to "take" values without any temporaries
-pub trait TakeCtor: MoveCtor {
+/// An interface to "take" pinned values in a type-safe way
+pub trait PinTakeCtor: PinMoveCtor {
     /// If `pin_take_ctor` can be simulated by a memcpy
     ///
     /// # Safety for implementors
@@ -79,16 +72,17 @@ pub trait TakeCtor: MoveCtor {
     /// you may only answer yes if there are no side-effects to moving the value
     /// and if there are no self-references that need to be handled or owned
     /// resources which need to be properly taken
-    const IS_TAKE_TRIVIAL: ConfigValue<Self, TakeTag> = ConfigValue::no();
+    const IS_TAKE_TRIVIAL: ConfigValue<Self, PinTakeTag> = ConfigValue::no();
 
     /// takes the value in `p` to `uninit`, the value in `p` will be left in a
     /// valid (safe), but unspecified state. The implementing type may guarantee what
     /// value the move constructor leaves it's state in
-    fn take_ctor<'this>(uninit: Uninit<'this, Self>, p: &mut Self) -> Init<'this, Self>;
+    fn pin_take_ctor<'this>(uninit: Uninit<'this, Self>, p: Pin<&mut Self>)
+        -> PinInit<'this, Self>;
 }
 
-/// An interface to clone values without any temporaries
-pub trait CloneCtor: TakeCtor {
+/// An interface to clone pinned values in a type-safe way
+pub trait PinCloneCtor: PinTakeCtor {
     /// If `pin_clone_ctor` can be simulated by a memcpy
     ///
     /// # Safety for implementors
@@ -96,8 +90,8 @@ pub trait CloneCtor: TakeCtor {
     /// you may only answer yes if there are no side-effects to moving the value
     /// and if there are no self-references that need to be handled or owned
     /// resources which need to be properly cloned
-    const IS_CLONE_TRIVIAL: ConfigValue<Self, CloneTag> = ConfigValue::no();
+    const IS_CLONE_TRIVIAL: ConfigValue<Self, PinCloneTag> = ConfigValue::no();
 
     /// clones the value in `p` to `uninit`
-    fn clone_ctor<'this>(uninit: Uninit<'this, Self>, p: &Self) -> Init<'this, Self>;
+    fn pin_clone_ctor<'this>(uninit: Uninit<'this, Self>, p: Pin<&Self>) -> PinInit<'this, Self>;
 }

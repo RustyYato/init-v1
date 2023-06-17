@@ -19,14 +19,17 @@ extern crate std;
 #[doc(hidden)]
 pub mod macros;
 
+pub mod config_value;
 pub mod interface;
 pub mod layout_provider;
+pub mod pin_interface;
 
 mod ext;
 mod pin_ptr;
 pub mod pin_slice_writer;
 mod ptr;
 pub mod slice_writer;
+pub mod source;
 
 #[cfg(feature = "alloc")]
 pub mod boxed;
@@ -34,6 +37,7 @@ mod hacks;
 pub mod pin_slice;
 pub mod slice;
 
-pub use interface::{ctor, pin_ctor, Ctor, CtorArgs, PinCtor, PinCtorArgs};
+pub use interface::{ctor, Ctor, CtorArgs};
+pub use pin_interface::{pin_ctor, PinCtor, PinCtorArgs};
 pub use pin_ptr::{IterPinInit, PinInit};
 pub use ptr::{Init, IterInit, IterUninit, Uninit};
