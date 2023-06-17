@@ -36,8 +36,12 @@ pub mod boxed;
 mod hacks;
 pub mod pin_slice;
 pub mod slice;
+pub mod try_ctor;
+pub mod try_pin_ctor;
 
 pub use ctor::{ctor, Ctor, CtorArgs};
 pub use pin_ctor::{pin_ctor, PinCtor, PinCtorArgs};
 pub use pin_ptr::{IterPinInit, PinInit};
 pub use ptr::{Init, IterInit, IterUninit, Uninit};
+pub use try_ctor::{try_ctor, TryCtor, TryCtorArgs};
+pub use try_pin_ctor::{try_pin_ctor, TryPinCtor, TryPinCtorArgs};

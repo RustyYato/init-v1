@@ -39,6 +39,14 @@ impl<'a, T: ?Sized> Uninit<'a, T> {
         crate::Ctor::init(self, args)
     }
 
+    /// Try to initialize self using a constructor
+    pub fn try_init<Args>(self, args: Args) -> Result<Init<'a, T>, T::Error>
+    where
+        T: crate::TryCtor<Args>,
+    {
+        crate::TryCtor::try_init(self, args)
+    }
+
     /// Initialize self using a constructor
     pub fn pin_init<Args>(self, args: Args) -> PinInit<'a, T>
     where
