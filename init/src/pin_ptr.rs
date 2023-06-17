@@ -62,6 +62,11 @@ impl<'a, T: ?Sized> PinInit<'a, T> {
         // SAFETY: Unpin types don't care if they are moved
         unsafe { self.into_inner_unchecked() }
     }
+
+    /// Leak the `PinInit` and is as signal that something else is taking ownership of the value
+    pub const fn take_ownership(self) {
+        core::mem::forget(self)
+    }
 }
 
 #[cfg(test)]

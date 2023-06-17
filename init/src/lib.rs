@@ -37,6 +37,7 @@ pub mod source;
 #[cfg(feature = "alloc")]
 pub mod boxed;
 mod hacks;
+pub mod pin_boxed;
 pub mod pin_slice;
 pub mod slice;
 pub mod try_pin_slice;

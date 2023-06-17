@@ -5,7 +5,7 @@ use crate::{
     ctor::{CloneCtor, MoveCtor, TakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider},
     pin_ctor::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
-    Ctor,
+    Ctor, PinCtor,
 };
 
 pub struct ScalarLayoutProvider;
@@ -126,6 +126,34 @@ macro_rules! primitive {
             #[inline]
             fn init(uninit: crate::Uninit<'_, Self>, arg: $ty) -> crate::Init<'_, Self> {
                 uninit.write(arg)
+            }
+
+            #[inline]
+            #[doc(hidden)]
+            fn __is_args_clone_cheap() -> bool {
+                true
+            }
+        }
+
+        impl PinCtor for $ty {
+            #[inline]
+            fn pin_init(uninit: crate::Uninit<'_, Self>, (): ()) -> crate::PinInit<'_, Self> {
+                let _value = 0;
+                $(let _value = $zero;)?
+                uninit.write(_value).pin()
+            }
+
+            #[inline]
+            #[doc(hidden)]
+            fn __is_args_clone_cheap() -> bool {
+                true
+            }
+        }
+
+        impl PinCtor<$ty> for $ty {
+            #[inline]
+            fn pin_init(uninit: crate::Uninit<'_, Self>, arg: $ty) -> crate::PinInit<'_, Self> {
+                uninit.write(arg).pin()
             }
 
             #[inline]
