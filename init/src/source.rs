@@ -114,42 +114,42 @@ unsafe impl<T: ?Sized> LayoutProvider<T, PinInit<'_, T>> for SourceLayoutProvide
 
 impl<T: ?Sized + MoveCtor> CtorArgs<T> for Init<'_, T> {
     #[inline]
-    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
+    fn init_into(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
         MoveCtor::move_ctor(uninit, self)
     }
 }
 
 impl<T: ?Sized + TakeCtor> CtorArgs<T> for &mut T {
     #[inline]
-    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
+    fn init_into(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
         TakeCtor::take_ctor(uninit, self)
     }
 }
 
 impl<T: ?Sized + CloneCtor> CtorArgs<T> for &T {
     #[inline]
-    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
+    fn init_into(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
         CloneCtor::clone_ctor(uninit, self)
     }
 }
 
 impl<T: ?Sized + PinMoveCtor> PinCtorArgs<T> for PinInit<'_, T> {
     #[inline]
-    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
+    fn pin_init_into(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
         PinMoveCtor::pin_move_ctor(uninit, self)
     }
 }
 
 impl<T: ?Sized + PinTakeCtor> PinCtorArgs<T> for Pin<&mut T> {
     #[inline]
-    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
+    fn pin_init_into(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
         PinTakeCtor::pin_take_ctor(uninit, self)
     }
 }
 
 impl<T: ?Sized + PinCloneCtor> PinCtorArgs<T> for Pin<&T> {
     #[inline]
-    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
+    fn pin_init_into(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
         PinCloneCtor::pin_clone_ctor(uninit, self)
     }
 }

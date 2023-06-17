@@ -168,7 +168,7 @@ impl<T: ?Sized> RawThinPtr<T> {
 struct Literal<T>(pub T);
 
 impl<T> init::CtorArgs<T> for Literal<T> {
-    fn init_with(self, uninit: init::Uninit<'_, T>) -> init::Init<'_, T> {
+    fn init_into(self, uninit: init::Uninit<'_, T>) -> init::Init<'_, T> {
         uninit.write(self.0)
     }
 }

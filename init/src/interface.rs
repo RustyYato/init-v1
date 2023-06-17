@@ -22,13 +22,13 @@ pub trait Ctor<Args = ()> {
 /// A type which can construct a `T`
 pub trait CtorArgs<T: ?Sized>: Sized {
     /// Initialize a the type `T` using `self`
-    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T>;
+    fn init_into(self, uninit: Uninit<'_, T>) -> Init<'_, T>;
 }
 
 impl<T: ?Sized, Args: CtorArgs<T>> Ctor<Args> for T {
     #[inline]
     fn init(uninit: Uninit<'_, Self>, args: Args) -> Init<'_, Self> {
-        args.init_with(uninit)
+        args.init_into(uninit)
     }
 }
 
@@ -43,7 +43,7 @@ struct CtorFn<F, T: ?Sized>(F, PhantomData<T>);
 
 impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Init<'_, T>> CtorArgs<T> for CtorFn<F, T> {
     #[inline]
-    fn init_with(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
+    fn init_into(self, uninit: Uninit<'_, T>) -> Init<'_, T> {
         (self.0)(uninit)
     }
 }

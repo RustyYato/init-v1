@@ -22,13 +22,13 @@ pub trait PinCtor<Args = ()> {
 /// A type which can construct a `T`
 pub trait PinCtorArgs<T: ?Sized>: Sized {
     /// Initialize a the type `T` using `self`
-    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T>;
+    fn pin_init_into(self, uninit: Uninit<'_, T>) -> PinInit<'_, T>;
 }
 
 impl<T: ?Sized, Args: PinCtorArgs<T>> PinCtor<Args> for T {
     #[inline]
     fn pin_init(uninit: Uninit<'_, Self>, args: Args) -> PinInit<'_, Self> {
-        args.pin_init_with(uninit)
+        args.pin_init_into(uninit)
     }
 }
 
@@ -36,7 +36,7 @@ struct PinCtorFn<F, T: ?Sized>(F, PhantomData<T>);
 
 impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> PinInit<'_, T>> PinCtorArgs<T> for PinCtorFn<F, T> {
     #[inline]
-    fn pin_init_with(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
+    fn pin_init_into(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
         (self.0)(uninit)
     }
 }
