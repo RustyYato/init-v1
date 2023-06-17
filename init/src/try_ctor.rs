@@ -83,7 +83,7 @@ impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Result<Init<'_, T>, E>, E> TryCtorAr
 /// `FnOnce()` to `CtorArgs` to `Ctor`, so use this no-op to guide inference
 pub fn try_ctor<T: ?Sized, F: FnOnce(Uninit<T>) -> Result<Init<T>, E>, E>(
     f: F,
-) -> impl TryCtorArgs<T> {
+) -> impl TryCtorArgs<T, Error = E> {
     TryCtorFn(f, PhantomData)
 }
 

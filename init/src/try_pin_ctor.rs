@@ -79,7 +79,7 @@ impl<T: ?Sized, F: FnOnce(Uninit<'_, T>) -> Result<PinInit<'_, T>, E>, E> TryPin
 /// `FnOnce()` to `PinCtorArgs` to `PinCtor`, so use this no-op to guide inference
 pub fn try_pin_ctor<T: ?Sized, F: FnOnce(Uninit<T>) -> Result<PinInit<T>, E>, E>(
     f: F,
-) -> impl TryPinCtorArgs<T> {
+) -> impl TryPinCtorArgs<T, Error = E> {
     TryPinCtorFn(f, PhantomData)
 }
 
