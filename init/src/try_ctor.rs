@@ -106,6 +106,36 @@ impl<T: ?Sized + Ctor<Args>, Args> TryCtorArgs<T> for OfCtor<Args> {
     }
 }
 
+impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
+    crate::layout_provider::HasLayoutProvider<OfCtor<Args>> for T
+{
+    type LayoutProvider = OfCtorLayoutProvider;
+}
+
+/// The layout provider for `OfCtor`
+pub struct OfCtorLayoutProvider;
+
+// SAFETY: guaranteed by T::LayoutProvider
+unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
+    crate::layout_provider::LayoutProvider<T, OfCtor<Args>> for OfCtorLayoutProvider
+{
+    fn layout_of(OfCtor(args): &OfCtor<Args>) -> Option<core::alloc::Layout> {
+        crate::layout_provider::layout_of::<T, Args>(args)
+    }
+
+    unsafe fn cast(
+        ptr: core::ptr::NonNull<u8>,
+        OfCtor(args): &OfCtor<Args>,
+    ) -> core::ptr::NonNull<T> {
+        // SAFETY: guaranteed by caller
+        unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
+    }
+
+    fn is_zeroed(OfCtor(args): &OfCtor<Args>) -> bool {
+        crate::layout_provider::is_zeroed::<T, Args>(args)
+    }
+}
+
 /// Converts an argument of `Ctor` to one of `TryCtor`
 pub fn of_ctor<Args>(args: Args) -> OfCtor<Args> {
     OfCtor(args)
@@ -130,6 +160,36 @@ impl<T: ?Sized + TryCtor<Args, Error = core::convert::Infallible>, Args> CtorArg
     #[doc(hidden)]
     fn __is_clone_cheap() -> bool {
         T::__is_args_clone_cheap()
+    }
+}
+
+impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
+    crate::layout_provider::HasLayoutProvider<ToCtor<Args>> for T
+{
+    type LayoutProvider = ToCtorLayoutProvider;
+}
+
+/// The layout provider for `ToCtor`
+pub struct ToCtorLayoutProvider;
+
+// SAFETY: guaranteed by T::LayoutProvider
+unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
+    crate::layout_provider::LayoutProvider<T, ToCtor<Args>> for ToCtorLayoutProvider
+{
+    fn layout_of(ToCtor(args): &ToCtor<Args>) -> Option<core::alloc::Layout> {
+        crate::layout_provider::layout_of::<T, Args>(args)
+    }
+
+    unsafe fn cast(
+        ptr: core::ptr::NonNull<u8>,
+        ToCtor(args): &ToCtor<Args>,
+    ) -> core::ptr::NonNull<T> {
+        // SAFETY: guaranteed by caller
+        unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
+    }
+
+    fn is_zeroed(ToCtor(args): &ToCtor<Args>) -> bool {
+        crate::layout_provider::is_zeroed::<T, Args>(args)
     }
 }
 

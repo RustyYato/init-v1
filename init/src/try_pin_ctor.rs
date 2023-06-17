@@ -102,6 +102,36 @@ impl<T: ?Sized + PinCtor<Args>, Args> TryPinCtorArgs<T> for OfPinCtor<Args> {
     }
 }
 
+impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
+    crate::layout_provider::HasLayoutProvider<OfPinCtor<Args>> for T
+{
+    type LayoutProvider = OfPinCtorLayoutProvider;
+}
+
+/// The layout provider for `OfPinCtor`
+pub struct OfPinCtorLayoutProvider;
+
+// SAFETY: guaranteed by T::LayoutProvider
+unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
+    crate::layout_provider::LayoutProvider<T, OfPinCtor<Args>> for OfPinCtorLayoutProvider
+{
+    fn layout_of(OfPinCtor(args): &OfPinCtor<Args>) -> Option<core::alloc::Layout> {
+        crate::layout_provider::layout_of::<T, Args>(args)
+    }
+
+    unsafe fn cast(
+        ptr: core::ptr::NonNull<u8>,
+        OfPinCtor(args): &OfPinCtor<Args>,
+    ) -> core::ptr::NonNull<T> {
+        // SAFETY: guaranteed by caller
+        unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
+    }
+
+    fn is_zeroed(OfPinCtor(args): &OfPinCtor<Args>) -> bool {
+        crate::layout_provider::is_zeroed::<T, Args>(args)
+    }
+}
+
 /// Converts an argument of `Ctor` to one of `TryCtor`
 pub fn of_pin_ctor<Args>(args: Args) -> OfPinCtor<Args> {
     OfPinCtor(args)
@@ -126,6 +156,36 @@ impl<T: ?Sized + TryPinCtor<Args, Error = core::convert::Infallible>, Args> PinC
     #[doc(hidden)]
     fn __is_clone_cheap() -> bool {
         T::__is_args_clone_cheap()
+    }
+}
+
+impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
+    crate::layout_provider::HasLayoutProvider<ToPinCtor<Args>> for T
+{
+    type LayoutProvider = ToPinCtorLayoutProvider;
+}
+
+/// The layout provider for `ToPinCtor`
+pub struct ToPinCtorLayoutProvider;
+
+// SAFETY: guaranteed by T::LayoutProvider
+unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
+    crate::layout_provider::LayoutProvider<T, ToPinCtor<Args>> for ToPinCtorLayoutProvider
+{
+    fn layout_of(ToPinCtor(args): &ToPinCtor<Args>) -> Option<core::alloc::Layout> {
+        crate::layout_provider::layout_of::<T, Args>(args)
+    }
+
+    unsafe fn cast(
+        ptr: core::ptr::NonNull<u8>,
+        ToPinCtor(args): &ToPinCtor<Args>,
+    ) -> core::ptr::NonNull<T> {
+        // SAFETY: guaranteed by caller
+        unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
+    }
+
+    fn is_zeroed(ToPinCtor(args): &ToPinCtor<Args>) -> bool {
+        crate::layout_provider::is_zeroed::<T, Args>(args)
     }
 }
 
