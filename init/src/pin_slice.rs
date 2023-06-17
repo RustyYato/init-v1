@@ -7,6 +7,7 @@ use crate::{
     layout_provider::{HasLayoutProvider, LayoutProvider},
     pin_ctor::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
     pin_slice_writer::PinSliceWriter,
+    try_pin_ctor::{of_pin_ctor, to_pin_ctor},
     PinCtor,
 };
 
@@ -54,15 +55,9 @@ impl<T: PinCtor<Args>, Args: Copy> PinCtor<CopyArgs<Args>> for [T] {
         uninit: crate::Uninit<'_, Self>,
         CopyArgs(args): CopyArgs<Args>,
     ) -> crate::PinInit<'_, Self> {
-        let mut writer = PinSliceWriter::new(uninit);
-
-        while !writer.is_complete() {
-            // SAFETY: The write isn't complete
-            unsafe { writer.pin_init_unchecked(args) }
-        }
-
-        // SAFETY: the writer is complete
-        unsafe { writer.finish_unchecked() }
+        uninit.pin_init(to_pin_ctor(crate::try_pin_slice::CopyArgs(of_pin_ctor(
+            args,
+        ))))
     }
 }
 
@@ -77,27 +72,9 @@ impl<T: PinCtor<Args>, Args: Clone> PinCtor<CloneArgs<Args>> for [T] {
         uninit: crate::Uninit<'_, Self>,
         CloneArgs(args): CloneArgs<Args>,
     ) -> crate::PinInit<'_, Self> {
-        let mut writer = PinSliceWriter::new(uninit);
-
-        if T::__is_args_clone_cheap() {
-            while !writer.is_complete() {
-                // SAFETY: The write isn't complete
-                unsafe { writer.pin_init_unchecked(args.clone()) }
-            }
-        } else {
-            loop {
-                match writer.remaining_len() {
-                    0 => break,
-                    1 => {
-                        writer.pin_init(args);
-                        break;
-                    }
-                    _ => writer.pin_init(args.clone()),
-                }
-            }
-        }
-
-        writer.finish()
+        uninit.pin_init(to_pin_ctor(crate::try_pin_slice::CloneArgs(of_pin_ctor(
+            args,
+        ))))
     }
 }
 

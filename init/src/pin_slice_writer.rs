@@ -2,7 +2,7 @@
 
 use core::mem::ManuallyDrop;
 
-use crate::{pin_ctor::PinCtor, ptr::IterUninit, PinInit, Uninit};
+use crate::{pin_ctor::PinCtor, ptr::IterUninit, PinInit, TryPinCtor, Uninit};
 
 /// A helper type to incrementally initialize a slice
 ///
@@ -67,6 +67,16 @@ impl<'a, T> PinSliceWriter<'a, T> {
     }
 
     /// Write the next element of the slice (write goes in order, from 0 -> len)
+    pub fn try_pin_init<Args>(&mut self, args: Args) -> Result<(), T::Error>
+    where
+        T: TryPinCtor<Args>,
+    {
+        assert!(!self.is_complete());
+        // SAFETY: this writer isn't complete
+        unsafe { self.try_pin_init_unchecked(args) }
+    }
+
+    /// Write the next element of the slice (write goes in order, from 0 -> len)
     ///
     /// # Safety
     ///
@@ -75,13 +85,30 @@ impl<'a, T> PinSliceWriter<'a, T> {
     where
         T: PinCtor<Args>,
     {
+        // SAFETY: guaranteed by caller
+        match unsafe { self.try_pin_init_unchecked(crate::try_pin_ctor::of_pin_ctor(args)) } {
+            Ok(()) => (),
+            Err(inf) => match inf {},
+        }
+    }
+
+    /// Write the next element of the slice (write goes in order, from 0 -> len)
+    ///
+    /// # Safety
+    ///
+    /// This writer must not be complete
+    pub unsafe fn try_pin_init_unchecked<Args>(&mut self, args: Args) -> Result<(), T::Error>
+    where
+        T: TryPinCtor<Args>,
+    {
         debug_assert!(!self.is_complete());
         // SAFETY: The caller guarantees that this writer isn't complete,
         // which ensure that the iterator isn't empty
-        let init = unsafe { self.iter.next_unchecked() }.pin_init(args);
+        let init = unsafe { self.iter.next_unchecked() }.try_pin_init(args)?;
         // We take ownership of the newly constructed value
         core::mem::forget(init);
         self.init += 1;
+        Ok(())
     }
 
     /// # Safety

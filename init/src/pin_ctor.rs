@@ -23,12 +23,24 @@ pub trait PinCtor<Args = ()> {
 pub trait PinCtorArgs<T: ?Sized> {
     /// Initialize a the type `T` using `self`
     fn pin_init_into(self, uninit: Uninit<'_, T>) -> PinInit<'_, T>;
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_clone_cheap() -> bool {
+        false
+    }
 }
 
 impl<T: ?Sized, Args: PinCtorArgs<T>> PinCtor<Args> for T {
     #[inline]
     fn pin_init(uninit: Uninit<'_, Self>, args: Args) -> PinInit<'_, Self> {
         args.pin_init_into(uninit)
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_args_clone_cheap() -> bool {
+        Args::__is_clone_cheap()
     }
 }
 

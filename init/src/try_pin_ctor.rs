@@ -2,7 +2,7 @@
 
 use core::{marker::PhantomData, mem::MaybeUninit};
 
-use crate::{PinInit, Uninit};
+use crate::{PinCtor, PinCtorArgs, PinInit, Uninit};
 
 /// A type which is constructable using `Args`
 pub trait TryPinCtor<Args = ()> {
@@ -27,6 +27,12 @@ pub trait TryPinCtorArgs<T: ?Sized> {
 
     /// Initialize a the type `T` using `self`
     fn try_pin_init_into(self, uninit: Uninit<'_, T>) -> Result<PinInit<'_, T>, Self::Error>;
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_clone_cheap() -> bool {
+        false
+    }
 }
 
 impl<T: ?Sized, Args: TryPinCtorArgs<T>> TryPinCtor<Args> for T {
@@ -47,6 +53,10 @@ impl<T> TryPinCtor for MaybeUninit<T> {
     #[inline]
     fn try_pin_init(uninit: Uninit<'_, Self>, (): ()) -> Result<PinInit<'_, Self>, Self::Error> {
         Ok(uninit.uninit().pin())
+    }
+
+    fn __is_args_clone_cheap() -> bool {
+        true
     }
 }
 
@@ -71,4 +81,55 @@ pub fn try_pin_ctor<T: ?Sized, F: FnOnce(Uninit<T>) -> Result<PinInit<T>, E>, E>
     f: F,
 ) -> impl TryPinCtorArgs<T> {
     TryPinCtorFn(f, PhantomData)
+}
+
+/// A helper type which converts any Ctor implementation to a `TryCtorArgs` implementation
+#[derive(Debug, Clone, Copy)]
+pub struct OfPinCtor<Args>(Args);
+
+impl<T: ?Sized + PinCtor<Args>, Args> TryPinCtorArgs<T> for OfPinCtor<Args> {
+    type Error = core::convert::Infallible;
+
+    #[inline]
+    fn try_pin_init_into(self, uninit: Uninit<'_, T>) -> Result<PinInit<'_, T>, Self::Error> {
+        Ok(uninit.pin_init(self.0))
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_clone_cheap() -> bool {
+        T::__is_args_clone_cheap()
+    }
+}
+
+/// Converts an argument of `Ctor` to one of `TryCtor`
+pub fn of_pin_ctor<Args>(args: Args) -> OfPinCtor<Args> {
+    OfPinCtor(args)
+}
+
+/// A helper type which converts any `TryCtor<Error = Infallible>` implementation to a `CtorArgs` implementation
+#[derive(Debug, Clone, Copy)]
+pub struct ToPinCtor<Args>(Args);
+
+impl<T: ?Sized + TryPinCtor<Args, Error = core::convert::Infallible>, Args> PinCtorArgs<T>
+    for ToPinCtor<Args>
+{
+    #[inline]
+    fn pin_init_into(self, uninit: Uninit<'_, T>) -> PinInit<'_, T> {
+        match uninit.try_pin_init(self.0) {
+            Ok(init) => init,
+            Err(inf) => match inf {},
+        }
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_clone_cheap() -> bool {
+        T::__is_args_clone_cheap()
+    }
+}
+
+/// Converts an argument of `Ctor` to one of `TryCtor`
+pub fn to_pin_ctor<Args>(args: Args) -> ToPinCtor<Args> {
+    ToPinCtor(args)
 }

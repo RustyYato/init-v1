@@ -39,6 +39,7 @@ pub mod boxed;
 mod hacks;
 pub mod pin_slice;
 pub mod slice;
+pub mod try_pin_slice;
 pub mod try_slice;
 
 pub use ctor::{ctor, Ctor, CtorArgs};
