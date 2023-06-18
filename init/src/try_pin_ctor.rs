@@ -85,9 +85,9 @@ pub fn try_pin_ctor<T: ?Sized, F: FnOnce(Uninit<T>) -> Result<PinInit<T>, E>, E>
 
 /// A helper type which converts any Ctor implementation to a `TryCtorArgs` implementation
 #[derive(Debug, Clone, Copy)]
-pub struct OfPinCtor<Args>(Args);
+pub struct OfPinCtor<Args, Err = core::convert::Infallible>(Args, PhantomData<fn() -> Err>);
 
-impl<T: ?Sized + PinCtor<Args>, Args> TryPinCtorArgs<T> for OfPinCtor<Args> {
+impl<T: ?Sized + PinCtor<Args>, Args, Err> TryPinCtorArgs<T> for OfPinCtor<Args, Err> {
     type Error = core::convert::Infallible;
 
     #[inline]
@@ -102,8 +102,8 @@ impl<T: ?Sized + PinCtor<Args>, Args> TryPinCtorArgs<T> for OfPinCtor<Args> {
     }
 }
 
-impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
-    crate::layout_provider::HasLayoutProvider<OfPinCtor<Args>> for T
+impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, Err>
+    crate::layout_provider::HasLayoutProvider<OfPinCtor<Args, Err>> for T
 {
     type LayoutProvider = OfPinCtorLayoutProvider;
 }
@@ -112,29 +112,34 @@ impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
 pub struct OfPinCtorLayoutProvider;
 
 // SAFETY: guaranteed by T::LayoutProvider
-unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
-    crate::layout_provider::LayoutProvider<T, OfPinCtor<Args>> for OfPinCtorLayoutProvider
+unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, Err>
+    crate::layout_provider::LayoutProvider<T, OfPinCtor<Args, Err>> for OfPinCtorLayoutProvider
 {
-    fn layout_of(OfPinCtor(args): &OfPinCtor<Args>) -> Option<core::alloc::Layout> {
+    fn layout_of(OfPinCtor(args, _): &OfPinCtor<Args, Err>) -> Option<core::alloc::Layout> {
         crate::layout_provider::layout_of::<T, Args>(args)
     }
 
     unsafe fn cast(
         ptr: core::ptr::NonNull<u8>,
-        OfPinCtor(args): &OfPinCtor<Args>,
+        OfPinCtor(args, _): &OfPinCtor<Args, Err>,
     ) -> core::ptr::NonNull<T> {
         // SAFETY: guaranteed by caller
         unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
     }
 
-    fn is_zeroed(OfPinCtor(args): &OfPinCtor<Args>) -> bool {
+    fn is_zeroed(OfPinCtor(args, _): &OfPinCtor<Args, Err>) -> bool {
         crate::layout_provider::is_zeroed::<T, Args>(args)
     }
 }
 
 /// Converts an argument of `Ctor` to one of `TryCtor`
 pub fn of_pin_ctor<Args>(args: Args) -> OfPinCtor<Args> {
-    OfPinCtor(args)
+    OfPinCtor(args, PhantomData)
+}
+
+/// Converts an argument of `Ctor` to one of `TryCtor`
+pub fn of_pin_ctor_any_err<Args, Err>(args: Args) -> OfPinCtor<Args, Err> {
+    OfPinCtor(args, PhantomData)
 }
 
 /// A helper type which converts any `TryCtor<Error = Infallible>` implementation to a `CtorArgs` implementation

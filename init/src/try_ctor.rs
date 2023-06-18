@@ -88,11 +88,18 @@ pub fn try_ctor<T: ?Sized, F: FnOnce(Uninit<T>) -> Result<Init<T>, E>, E>(
 }
 
 /// A helper type which converts any Ctor implementation to a `TryCtorArgs` implementation
-#[derive(Debug, Clone, Copy)]
-pub struct OfCtor<Args>(Args);
+#[derive(Debug)]
+pub struct OfCtor<Args, Err = core::convert::Infallible>(Args, PhantomData<fn() -> Err>);
 
-impl<T: ?Sized + Ctor<Args>, Args> TryCtorArgs<T> for OfCtor<Args> {
-    type Error = core::convert::Infallible;
+impl<Args: Copy, Err> Copy for OfCtor<Args, Err> {}
+impl<Args: Clone, Err> Clone for OfCtor<Args, Err> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), PhantomData)
+    }
+}
+
+impl<T: ?Sized + Ctor<Args>, Args, Err> TryCtorArgs<T> for OfCtor<Args, Err> {
+    type Error = Err;
 
     #[inline]
     fn try_init_into(self, uninit: Uninit<'_, T>) -> Result<Init<'_, T>, Self::Error> {
@@ -106,8 +113,8 @@ impl<T: ?Sized + Ctor<Args>, Args> TryCtorArgs<T> for OfCtor<Args> {
     }
 }
 
-impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
-    crate::layout_provider::HasLayoutProvider<OfCtor<Args>> for T
+impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, Err>
+    crate::layout_provider::HasLayoutProvider<OfCtor<Args, Err>> for T
 {
     type LayoutProvider = OfCtorLayoutProvider;
 }
@@ -116,29 +123,34 @@ impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
 pub struct OfCtorLayoutProvider;
 
 // SAFETY: guaranteed by T::LayoutProvider
-unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
-    crate::layout_provider::LayoutProvider<T, OfCtor<Args>> for OfCtorLayoutProvider
+unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, Err>
+    crate::layout_provider::LayoutProvider<T, OfCtor<Args, Err>> for OfCtorLayoutProvider
 {
-    fn layout_of(OfCtor(args): &OfCtor<Args>) -> Option<core::alloc::Layout> {
+    fn layout_of(OfCtor(args, _): &OfCtor<Args, Err>) -> Option<core::alloc::Layout> {
         crate::layout_provider::layout_of::<T, Args>(args)
     }
 
     unsafe fn cast(
         ptr: core::ptr::NonNull<u8>,
-        OfCtor(args): &OfCtor<Args>,
+        OfCtor(args, _): &OfCtor<Args, Err>,
     ) -> core::ptr::NonNull<T> {
         // SAFETY: guaranteed by caller
         unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
     }
 
-    fn is_zeroed(OfCtor(args): &OfCtor<Args>) -> bool {
+    fn is_zeroed(OfCtor(args, _): &OfCtor<Args, Err>) -> bool {
         crate::layout_provider::is_zeroed::<T, Args>(args)
     }
 }
 
 /// Converts an argument of `Ctor` to one of `TryCtor`
 pub fn of_ctor<Args>(args: Args) -> OfCtor<Args> {
-    OfCtor(args)
+    OfCtor(args, PhantomData)
+}
+
+/// Converts an argument of `Ctor` to one of `TryCtor`
+pub fn of_ctor_any_err<Args, Err>(args: Args) -> OfCtor<Args, Err> {
+    OfCtor(args, PhantomData)
 }
 
 /// A helper type which converts any `TryCtor<Error = Infallible>` implementation to a `CtorArgs` implementation
