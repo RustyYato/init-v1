@@ -3,7 +3,7 @@
 use core::mem::MaybeUninit;
 
 use crate::{
-    array::ArrayLayoutProvider, layout_provider::HasLayoutProvider, try_slice::*, TryCtor,
+    array::ArrayLayoutProvider, layout_provider::HasLayoutProvider, slice::try_ctor::*, TryCtor,
 };
 
 /// An adapter to convert a slice initializer to an array initializer

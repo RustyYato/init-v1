@@ -7,7 +7,7 @@ use crate::{
     config_value::{ConfigValue, PinCloneTag, PinMoveTag, PinTakeTag},
     layout_provider::HasLayoutProvider,
     pin_ctor::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
-    pin_slice::*,
+    slice::pin_ctor::*,
     PinCtor,
 };
 

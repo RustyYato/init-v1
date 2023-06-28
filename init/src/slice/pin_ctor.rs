@@ -55,7 +55,7 @@ impl<T: PinCtor<Args>, Args: Copy> PinCtor<CopyArgs<Args>> for [T] {
         uninit: crate::Uninit<'_, Self>,
         CopyArgs(args): CopyArgs<Args>,
     ) -> crate::PinInit<'_, Self> {
-        uninit.pin_init(to_pin_ctor(crate::try_pin_slice::CopyArgs(of_pin_ctor(
+        uninit.pin_init(to_pin_ctor(super::try_pin_ctor::CopyArgs(of_pin_ctor(
             args,
         ))))
     }
@@ -72,7 +72,7 @@ impl<T: PinCtor<Args>, Args: Clone> PinCtor<CloneArgs<Args>> for [T] {
         uninit: crate::Uninit<'_, Self>,
         CloneArgs(args): CloneArgs<Args>,
     ) -> crate::PinInit<'_, Self> {
-        uninit.pin_init(to_pin_ctor(crate::try_pin_slice::CloneArgs(of_pin_ctor(
+        uninit.pin_init(to_pin_ctor(super::try_pin_ctor::CloneArgs(of_pin_ctor(
             args,
         ))))
     }

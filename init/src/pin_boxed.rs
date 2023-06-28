@@ -134,7 +134,7 @@ where
 mod test {
     #[test]
     fn test() {
-        let value = super::pin_boxed::<[u8], _>(crate::pin_slice::CopyArgsLen(10, ()));
+        let value = super::pin_boxed::<[u8], _>(crate::slice::pin_ctor::CopyArgsLen(10, ()));
 
         assert_eq!(*value, [0; 10]);
     }

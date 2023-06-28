@@ -3,9 +3,11 @@
 use core::mem::MaybeUninit;
 
 use crate::{
-    array::ArrayLayoutProvider, layout_provider::HasLayoutProvider, try_pin_slice::*, TryPinCtor,
+    array::ArrayLayoutProvider, layout_provider::HasLayoutProvider, slice::try_pin_ctor::*,
+    TryPinCtor,
 };
 
+/// An adapter to convert a slice initializer to an array initializer
 pub struct ArrayAdapter<A>(pub A);
 
 impl<const N: usize, T, A> TryPinCtor<ArrayAdapter<A>> for [T; N]

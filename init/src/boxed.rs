@@ -169,7 +169,7 @@ where
 mod test {
     #[test]
     fn test() {
-        let value = super::boxed::<[u8], _>(crate::slice::CopyArgsLen(10, ()));
+        let value = super::boxed::<[u8], _>(crate::slice::ctor::CopyArgsLen(10, ()));
 
         assert_eq!(*value, [0; 10]);
     }
