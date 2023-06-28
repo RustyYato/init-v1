@@ -1,4 +1,6 @@
-use core::{alloc::Layout, pin::Pin};
+//! Constructors and layout providers for external types
+
+use core::{alloc::Layout, cell::UnsafeCell, pin::Pin};
 
 use crate::{
     config_value::{CloneTag, ConfigValue, MoveTag, PinCloneTag, PinMoveTag, PinTakeTag, TakeTag},
@@ -8,6 +10,7 @@ use crate::{
     Ctor, PinCtor,
 };
 
+/// A layout provider for scalar primitives
 pub struct ScalarLayoutProvider;
 
 macro_rules! primitive {
@@ -281,5 +284,65 @@ impl Ctor for () {
     #[inline]
     fn init(uninit: crate::Uninit<'_, Self>, (): ()) -> crate::Init<'_, Self> {
         uninit.write(())
+    }
+}
+
+/// A constructor for an [`UnsafeCell`]
+pub struct NewUnsafeCell<T>(pub T);
+
+impl<T: ?Sized + crate::Ctor<A>, A> crate::Ctor<NewUnsafeCell<A>> for UnsafeCell<T> {
+    fn init(
+        uninit: crate::Uninit<'_, Self>,
+        NewUnsafeCell(args): NewUnsafeCell<A>,
+    ) -> crate::Init<'_, Self> {
+        // SAFETY: UnsafeCell has the same layout as `T`
+        let value = unsafe { crate::Uninit::from_raw(uninit.as_ptr() as *mut T) };
+        value.init(args).take_ownership();
+        // SAFETY: ^^^ The value was initialized
+        unsafe { uninit.assume_init() }
+    }
+}
+
+impl<T: ?Sized + crate::PinCtor<A>, A> crate::PinCtor<NewUnsafeCell<A>> for UnsafeCell<T> {
+    fn pin_init(
+        uninit: crate::Uninit<'_, Self>,
+        NewUnsafeCell(args): NewUnsafeCell<A>,
+    ) -> crate::PinInit<'_, Self> {
+        // SAFETY: UnsafeCell has the same layout as `T` and it will remain in the pinned type-state
+        let value = unsafe { crate::Uninit::from_raw(uninit.as_ptr() as *mut T) };
+        value.pin_init(args).take_ownership();
+        // SAFETY: ^^^ The value was initialized
+        unsafe { uninit.assume_init().pin() }
+    }
+}
+
+/// The layout provider for [`UnsafeCell`]
+pub struct UnsafeCellLayoutProvider;
+
+impl<T: ?Sized + HasLayoutProvider<A>, A> HasLayoutProvider<NewUnsafeCell<A>> for UnsafeCell<T> {
+    type LayoutProvider = UnsafeCellLayoutProvider;
+}
+
+// SAFETY: [`UnsafeCell`] has the same layout as `T` so it's safe to just defer to `T`'s layout provider
+unsafe impl<T: ?Sized + HasLayoutProvider<A>, A> LayoutProvider<UnsafeCell<T>, NewUnsafeCell<A>>
+    for UnsafeCellLayoutProvider
+{
+    fn layout_of(args: &NewUnsafeCell<A>) -> Option<Layout> {
+        crate::layout_provider::layout_of::<T, A>(&args.0)
+    }
+
+    unsafe fn cast(
+        ptr: core::ptr::NonNull<u8>,
+        args: &NewUnsafeCell<A>,
+    ) -> core::ptr::NonNull<UnsafeCell<T>> {
+        // SAFETY: see impl level safety doc
+        unsafe {
+            let ptr = crate::layout_provider::cast::<T, A>(ptr, &args.0);
+            core::ptr::NonNull::new_unchecked(ptr.as_ptr() as *mut UnsafeCell<T>)
+        }
+    }
+
+    fn is_zeroed(args: &NewUnsafeCell<A>) -> bool {
+        crate::layout_provider::is_zeroed::<T, A>(&args.0)
     }
 }

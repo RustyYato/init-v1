@@ -27,7 +27,7 @@ pub mod pin_ctor;
 pub mod try_ctor;
 pub mod try_pin_ctor;
 
-mod ext;
+pub mod ext;
 mod pin_ptr;
 pub mod pin_slice_writer;
 mod ptr;
