@@ -50,4 +50,9 @@ impl<T: ?Sized, Tag: ?Sized> ConfigValue<T, Tag> {
     pub const unsafe fn cast<U: ?Sized>(self) -> ConfigValue<U, Tag> {
         ConfigValue(self.0, PhantomData)
     }
+
+    /// Is only true if both values are true
+    pub const fn and(self, other: Self) -> Self {
+        ConfigValue(self.0 & other.0, PhantomData)
+    }
 }

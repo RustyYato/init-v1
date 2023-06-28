@@ -1,6 +1,6 @@
 //! The core interfaces used to pin-initialize types
 
-use core::{marker::PhantomData, pin::Pin};
+use core::{marker::PhantomData, mem::MaybeUninit, pin::Pin};
 
 use crate::{
     config_value::{ConfigValue, PinCloneTag, PinMoveTag, PinTakeTag},
@@ -41,6 +41,19 @@ impl<T: ?Sized, Args: PinCtorArgs<T>> PinCtor<Args> for T {
     #[doc(hidden)]
     fn __is_args_clone_cheap() -> bool {
         Args::__is_clone_cheap()
+    }
+}
+
+impl<T> PinCtor for MaybeUninit<T> {
+    #[inline]
+    fn pin_init(uninit: Uninit<'_, Self>, (): ()) -> PinInit<'_, Self> {
+        uninit.uninit().pin()
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    fn __is_args_clone_cheap() -> bool {
+        true
     }
 }
 

@@ -87,7 +87,7 @@ impl<'a, T: ?Sized> Uninit<'a, T> {
     /// Get the underlying raw pointer from an `Uninit`
     ///
     /// This pointer may only be written to before it is read from
-    #[inline]
+    #[inline(always)]
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.ptr.as_ptr()
     }

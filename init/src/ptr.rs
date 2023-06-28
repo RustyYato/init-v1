@@ -102,6 +102,15 @@ impl<'a, T> Uninit<'a, [MaybeUninit<T>]> {
     }
 }
 
+impl<'a, T, const N: usize> Uninit<'a, [T; N]> {
+    /// Convert to an `Init` without writing to the underlying pointer
+    #[inline]
+    pub const fn as_slice(self) -> Uninit<'a, [T]> {
+        // SAFETY: slices and arrays are layout compatible
+        unsafe { Uninit::from_raw(self.into_raw() as *mut [T]) }
+    }
+}
+
 impl<'a, T> Uninit<'a, [T]> {
     /// The length of the slice
     pub const fn len(&self) -> usize {
@@ -216,6 +225,26 @@ impl<'a, T> Init<'a, [T]> {
     #[inline]
     pub fn iter(self) -> IterInit<'a, T> {
         IterInit::new(self)
+    }
+
+    /// Convert a slice to an array without checking the length
+    ///
+    /// # Safety
+    ///
+    /// The length of the slice must equal `N`
+    pub unsafe fn into_array_unchecked<const N: usize>(self) -> Init<'a, [T; N]> {
+        debug_assert_eq!(self.len(), N);
+        // SAFETY: The length of the slice is equal to `N`, so the slice is layout compatible with [T; N]
+        unsafe { Init::from_raw(self.into_raw().cast()) }
+    }
+}
+
+impl<'a, T, const N: usize> Init<'a, [T; N]> {
+    /// Convert to an `Init` without writing to the underlying pointer
+    #[inline]
+    pub const fn to_slice(self) -> Init<'a, [T]> {
+        // SAFETY: slices and arrays are layout compatible
+        unsafe { Init::from_raw(self.into_raw() as *mut [T]) }
     }
 }
 

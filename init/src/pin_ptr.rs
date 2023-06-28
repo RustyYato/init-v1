@@ -69,6 +69,44 @@ impl<'a, T: ?Sized> PinInit<'a, T> {
     }
 }
 
+impl<'a, T> PinInit<'a, [T]> {
+    /// The length of the slice
+    pub const fn len(&self) -> usize {
+        crate::hacks::ptr_slice_len(self.as_ptr())
+    }
+
+    /// Checks if the slice is empty (has length == 0)
+    pub const fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    // /// An iterator over all elements of the slice
+    // #[inline]
+    // pub fn iter(self) -> IterInit<'a, T> {
+    //     IterInit::new(self)
+    // }
+
+    /// Convert a slice to an array without checking the length
+    ///
+    /// # Safety
+    ///
+    /// The length of the slice must equal `N`
+    pub unsafe fn into_array_unchecked<const N: usize>(self) -> PinInit<'a, [T; N]> {
+        debug_assert_eq!(self.len(), N);
+        // SAFETY: The length of the slice is equal to `N`, so the slice is layout compatible with [T; N]
+        unsafe { PinInit::from_raw(self.into_raw().cast()) }
+    }
+}
+
+impl<'a, T, const N: usize> PinInit<'a, [T; N]> {
+    /// Convert to an `Init` without writing to the underlying pointer
+    #[inline]
+    pub const fn to_slice(self) -> PinInit<'a, [T]> {
+        // SAFETY: slices and arrays are layout compatible
+        unsafe { PinInit::from_raw(self.into_raw() as *mut [T]) }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::Uninit;

@@ -203,7 +203,7 @@ pub struct SliceLenLayoutProvider;
 /// NOTE: this will take at most enough elements as needed to fill up the slice, and no more
 ///
 /// The initializer will error if not enough elements are passed in to completely fill up the slice
-pub struct IterInit<I>(I);
+pub struct IterInit<I>(pub I);
 
 /// An error for the [`IterInit`] type
 pub enum IterInitError<E> {

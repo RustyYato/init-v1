@@ -34,12 +34,16 @@ mod ptr;
 pub mod slice_writer;
 pub mod source;
 
+pub mod array;
 #[cfg(feature = "alloc")]
 pub mod boxed;
 mod hacks;
+pub mod pin_array;
 pub mod pin_boxed;
 pub mod pin_slice;
 pub mod slice;
+pub mod try_array;
+mod try_pin_array;
 pub mod try_pin_slice;
 pub mod try_slice;
 
