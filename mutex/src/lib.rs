@@ -1,8 +1,10 @@
+#![feature(intrinsics, core_intrinsics)]
+
 use std::{
     alloc::Layout,
     cell::{Cell, UnsafeCell},
     marker::{PhantomData, PhantomPinned},
-    ops::Deref,
+    ops::{Add, Deref},
     pin::Pin,
 };
 
@@ -70,6 +72,13 @@ impl init::layout_provider::HasLayoutProvider for PThreadMutex {
 }
 
 impl PThreadMutex {
+    pub const fn new() -> Self {
+        Self {
+            lock: UnsafeCell::new(libc::PTHREAD_MUTEX_INITIALIZER),
+            _unpin: PhantomPinned,
+        }
+    }
+
     pub fn lock(self: Pin<&Self>) {
         let x = &self.lock;
         let val = unsafe { pthread_mutex_lock(x.get()) };
@@ -106,6 +115,15 @@ pub struct MutexGuard<'a, T: ?Sized> {
 }
 
 unsafe impl<T: Sync> Sync for MutexGuard<'_, T> {}
+
+impl<T> Mutex<T> {
+    pub const fn new(value: T) -> Self {
+        Self {
+            lock: PThreadMutex::new(),
+            value: UnsafeCell::new(value),
+        }
+    }
+}
 
 impl<T: ?Sized> Mutex<T> {
     pub fn as_lock(self: Pin<&Self>) -> Pin<&PThreadMutex> {
@@ -235,7 +253,8 @@ impl<T: ?Sized + core::fmt::Debug> core::fmt::Debug for MutexGuard<'_, T> {
 #[test]
 fn mutex() {
     let mutex = init::pin_boxed::pin_boxed::<Mutex<i32>, _>(());
-    let _x = dbg!(mutex.as_ref().lock());
-    dbg!(mutex.as_ref().try_lock());
-    panic!();
+    let _lock = mutex.as_ref().lock();
+    assert!(mutex.as_ref().try_lock().is_none());
+    drop(_lock);
+    let _lock = mutex.as_ref().lock();
 }
