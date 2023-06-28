@@ -4,9 +4,6 @@ use core::{alloc::Layout, ptr::NonNull};
 
 use crate::layout_provider::LayoutProvider;
 
-pub mod try_ctor;
-pub mod try_pin_ctor;
-
 /// A layout provider for arrays, which is based off of the slice layout provider
 pub struct ArrayLayoutProvider<L>(L);
 

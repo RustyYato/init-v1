@@ -8,6 +8,121 @@ use crate::{
     TryPinCtor,
 };
 
+use super::SliceLenLayoutProvider;
+
+/// An adapter to convert a slice initializer to an array initializer
+pub struct ArrayAdapter<A>(A);
+
+impl<const N: usize, T, A> TryPinCtor<ArrayAdapter<A>> for [T; N]
+where
+    [T]: TryPinCtor<A>,
+{
+    type Error = <[T] as TryPinCtor<A>>::Error;
+
+    fn try_pin_init(
+        uninit: crate::Uninit<'_, Self>,
+        args: ArrayAdapter<A>,
+    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
+        let init = uninit.as_slice().try_pin_init(args.0)?;
+        // SAFETY: this init is the same array as `uninit`, so it has the right length
+        Ok(unsafe { init.into_array_unchecked() })
+    }
+
+    #[doc(hidden)]
+    fn __is_args_clone_cheap() -> bool {
+        <[T] as TryPinCtor<A>>::__is_args_clone_cheap()
+    }
+}
+
+macro_rules! mk_ctor {
+    (
+        for<$T:ident $(, $U:ident)*> [$($slice_ty:tt)*]
+        with ($Arg:ty)
+        $((where $($bounds:tt)*))?
+        $((array_where $($array_bounds:tt)*))?
+        type Error = $Error:ty;
+        layout($layout_args:ident) $(is_zeroed($zeroed_args:pat) $zeroed_imp:block)?
+        init($uninit:ident, $args:pat) $imp:block
+        $(is_arg_cheap $imp_cheap:block)?
+    ) => {
+        impl<$T $(, $U)*> HasLayoutProvider<$Arg> for [$($slice_ty)*] $(where $($array_bounds)*)? {
+            type LayoutProvider = SliceLenLayoutProvider;
+        }
+
+        // SAFETY: The layout is compatible with cast
+        unsafe impl<$T $(, $U)*> LayoutProvider<[$($slice_ty)*], $Arg> for SliceLenLayoutProvider $(where $($array_bounds)*)? {
+            fn layout_of($layout_args: &$Arg) -> Option<core::alloc::Layout> {
+                Layout::array::<T>($layout_args.0).ok()
+            }
+
+            unsafe fn cast(ptr: NonNull<u8>, $layout_args: &$Arg) -> NonNull<[$($slice_ty)*]> {
+                NonNull::slice_from_raw_parts(ptr.cast(), $layout_args.0)
+            }
+
+            $(
+                fn is_zeroed($zeroed_args: &$Arg) -> bool $zeroed_imp
+            )?
+        }
+
+        mk_ctor! {
+            for<$T $(, $U)*> [$($slice_ty)*]
+            with ($Arg)
+            $((where $($bounds)*))?
+            $((array_where $($array_bounds)*))?
+            type Error = $Error;
+            $(is_zeroed($zeroed_args) $zeroed_imp)?
+            init($uninit, $args) $imp
+            $(is_arg_cheap $imp_cheap)?
+        }
+    };
+    (
+        for<$T:ident $(, $U:ident)*> [$($slice_ty:tt)*]
+        with ($Arg:ty)
+        $((where $($bounds:tt)*))?
+        $((array_where $($array_bounds:tt)*))?
+        type Error = $Error:ty;
+        $(is_zeroed($zeroed_args:pat) $zeroed_imp:block)?
+        init($uninit:ident, $args:pat) $imp:block
+        $(is_arg_cheap $imp_cheap:block)?
+    ) => {
+        impl<$T $(, $U)*> TryPinCtor<$Arg> for [$($slice_ty)*] $(where $($bounds)*)? {
+            type Error = $Error;
+
+            fn try_pin_init($uninit: crate::Uninit<'_, Self>, $args: $Arg) -> Result<crate::PinInit<'_, Self>, Self::Error> $imp
+            $(#[doc(hidden)] fn __is_args_clone_cheap() -> bool $imp_cheap)?
+        }
+
+        impl<$T $(, $U)*, const N: usize> HasLayoutProvider<$Arg> for [$($slice_ty)*; N] $(where $($array_bounds)*)? {
+            type LayoutProvider = SliceLenLayoutProvider;
+        }
+
+        // SAFETY: The layout is compatible with cast
+        unsafe impl<$T $(, $U)*, const N: usize> LayoutProvider<[$($slice_ty)*; N], $Arg> for SliceLenLayoutProvider $(where $($array_bounds)*)? {
+            fn layout_of(_: &$Arg) -> Option<core::alloc::Layout> {
+                Some(core::alloc::Layout::new::<[$($slice_ty)*; N]>())
+            }
+
+            unsafe fn cast(ptr: NonNull<u8>, _: &$Arg) -> NonNull<[$($slice_ty)*; N]> {
+                ptr.cast()
+            }
+
+            $(
+                fn is_zeroed($zeroed_args: &$Arg) -> bool $zeroed_imp
+            )?
+        }
+
+        impl<$T $(, $U)*, const N: usize> TryPinCtor<$Arg> for [$($slice_ty)*; N] $(where $($bounds)*)? {
+            type Error = $Error;
+
+            fn try_pin_init(uninit: crate::Uninit<'_, Self>, args: $Arg) -> Result<crate::PinInit<'_, Self>, Self::Error> {
+                uninit.try_pin_init(ArrayAdapter(args))
+            }
+
+            $(#[doc(hidden)] fn __is_args_clone_cheap() -> bool $imp_cheap)?
+        }
+    };
+}
+
 impl<T: TryPinCtor> TryPinCtor for [T] {
     type Error = T::Error;
 
@@ -16,6 +131,27 @@ impl<T: TryPinCtor> TryPinCtor for [T] {
         (): (),
     ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
         uninit.try_pin_init(CopyArgs(()))
+    }
+
+    #[doc(hidden)]
+    fn __is_args_clone_cheap() -> bool {
+        true
+    }
+}
+
+impl<T: TryPinCtor, const N: usize> TryPinCtor for [T; N] {
+    type Error = T::Error;
+
+    fn try_pin_init(
+        uninit: crate::Uninit<'_, Self>,
+        (): (),
+    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
+        uninit.try_pin_init(CopyArgs(()))
+    }
+
+    #[doc(hidden)]
+    fn __is_args_clone_cheap() -> bool {
+        true
     }
 }
 
@@ -56,13 +192,21 @@ impl<T> TryPinCtor<UninitSliceLen> for [MaybeUninit<T>] {
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgs<Args>(pub Args);
 
-impl<T: TryPinCtor<Args>, Args: Copy> TryPinCtor<CopyArgs<Args>> for [T] {
+/// A slice constructor which copies the argument and uses it to construct each element of the slice
+///
+/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
+#[derive(Debug, Clone, Copy)]
+pub struct CopyArgsLen<Args>(pub usize, pub Args);
+
+mk_ctor! {
+    for<T, A> [T] with (CopyArgs<A>) (where T: TryPinCtor<A>, A: Copy,) (array_where T: HasLayoutProvider<A>)
     type Error = T::Error;
 
-    fn try_pin_init(
-        uninit: crate::Uninit<'_, Self>,
-        CopyArgs(args): CopyArgs<Args>,
-    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
+    is_zeroed(CopyArgs(args)) {
+        crate::layout_provider::is_zeroed::<T, A>(args)
+    }
+
+    init(uninit, CopyArgs(args)) {
         let mut writer = PinSliceWriter::new(uninit);
 
         while !writer.is_complete() {
@@ -75,18 +219,41 @@ impl<T: TryPinCtor<Args>, Args: Copy> TryPinCtor<CopyArgs<Args>> for [T] {
     }
 }
 
+mk_ctor! {
+    for<T, A> [T] with (CopyArgsLen<A>) (where T: TryPinCtor<A>, A: Copy,) (array_where T: HasLayoutProvider<A>)
+    type Error = T::Error;
+
+    layout(args)
+
+    is_zeroed(CopyArgsLen(_, args)) {
+        crate::layout_provider::is_zeroed::<T, A>(args)
+    }
+
+    init(uninit, CopyArgsLen(_, args)) {
+        uninit.try_pin_init(CopyArgs(args))
+    }
+}
+
 /// A slice constructor which clones the argument and uses it to construct each element of the slice
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgs<Args>(pub Args);
 
-impl<T: TryPinCtor<Args>, Args: Clone> TryPinCtor<CloneArgs<Args>> for [T] {
+/// A slice constructor which clones the argument and uses it to construct each element of the slice
+///
+/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
+#[derive(Debug, Clone, Copy)]
+pub struct CloneArgsLen<Args>(pub usize, pub Args);
+
+mk_ctor! {
+    for<T, A> [T] with (CloneArgs<A>) (where T: TryPinCtor<A>, A: Clone,) (array_where T: HasLayoutProvider<A>)
     type Error = T::Error;
 
-    fn try_pin_init(
-        uninit: crate::Uninit<'_, Self>,
-        CloneArgs(args): CloneArgs<Args>,
-    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
+    is_zeroed(CloneArgs(args)) {
+        crate::layout_provider::is_zeroed::<T, A>(args)
+    }
+
+    init(uninit, CloneArgs(args)) {
         let mut writer = PinSliceWriter::new(uninit);
 
         if T::__is_args_clone_cheap() {
@@ -111,92 +278,20 @@ impl<T: TryPinCtor<Args>, Args: Clone> TryPinCtor<CloneArgs<Args>> for [T] {
     }
 }
 
-/// A slice constructor which copies the argument and uses it to construct each element of the slice
-///
-/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
-#[derive(Debug, Clone, Copy)]
-pub struct CopyArgsLen<Args>(pub usize, pub Args);
-
-impl<T: TryPinCtor<Args>, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T]
-where
-    T: HasLayoutProvider<Args>,
-{
-    type LayoutProvider = SliceLenLayoutProvider;
-}
-
-// SAFETY: The layout is compatible with cast
-unsafe impl<T, Args: Copy> LayoutProvider<[T], CopyArgsLen<Args>> for SliceLenLayoutProvider
-where
-    T: HasLayoutProvider<Args>,
-{
-    fn layout_of(args: &CopyArgsLen<Args>) -> Option<Layout> {
-        Layout::array::<T>(args.0).ok()
-    }
-
-    unsafe fn cast(ptr: NonNull<u8>, args: &CopyArgsLen<Args>) -> NonNull<[T]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
-    }
-
-    fn is_zeroed(CopyArgsLen(_, args): &CopyArgsLen<Args>) -> bool {
-        crate::layout_provider::is_zeroed::<T, Args>(args)
-    }
-}
-
-impl<T: TryPinCtor<Args>, Args: Copy> TryPinCtor<CopyArgsLen<Args>> for [T] {
+mk_ctor! {
+    for<T, A> [T] with (CloneArgsLen<A>) (where T: TryPinCtor<A>, A: Clone,) (array_where T: HasLayoutProvider<A>)
     type Error = T::Error;
 
-    fn try_pin_init(
-        uninit: crate::Uninit<'_, Self>,
-        CopyArgsLen(_, args): CopyArgsLen<Args>,
-    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
-        uninit.try_pin_init(CopyArgs(args))
-    }
-}
+    layout(args)
 
-/// A slice constructor which clones the argument and uses it to construct each element of the slice
-///
-/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
-#[derive(Debug, Clone, Copy)]
-pub struct CloneArgsLen<Args>(pub usize, pub Args);
-
-impl<T, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T]
-where
-    T: HasLayoutProvider<Args>,
-{
-    type LayoutProvider = SliceLenLayoutProvider;
-}
-
-// SAFETY: The layout is compatible with cast
-unsafe impl<T, Args: Clone> LayoutProvider<[T], CloneArgsLen<Args>> for SliceLenLayoutProvider
-where
-    T: HasLayoutProvider<Args>,
-{
-    fn layout_of(args: &CloneArgsLen<Args>) -> Option<Layout> {
-        Layout::array::<T>(args.0).ok()
+    is_zeroed(CloneArgsLen(_, args)) {
+        crate::layout_provider::is_zeroed::<T, A>(args)
     }
 
-    unsafe fn cast(ptr: NonNull<u8>, args: &CloneArgsLen<Args>) -> NonNull<[T]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
-    }
-
-    fn is_zeroed(CloneArgsLen(_, args): &CloneArgsLen<Args>) -> bool {
-        crate::layout_provider::is_zeroed::<T, Args>(args)
-    }
-}
-
-impl<T: TryPinCtor<Args>, Args: Clone> TryPinCtor<CloneArgsLen<Args>> for [T] {
-    type Error = T::Error;
-
-    fn try_pin_init(
-        uninit: crate::Uninit<'_, Self>,
-        CloneArgsLen(_, args): CloneArgsLen<Args>,
-    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
+    init(uninit, CloneArgsLen(_, args)) {
         uninit.try_pin_init(CloneArgs(args))
     }
 }
-
-/// A layout provider for slices
-pub struct SliceLenLayoutProvider;
 
 /// An initializer argument to initialize a slice with the items of the iterator
 ///
@@ -204,33 +299,6 @@ pub struct SliceLenLayoutProvider;
 ///
 /// The initializer will error if not enough elements are passed in to completely fill up the slice
 pub struct IterInit<I>(pub I);
-
-/// An error for the [`IterInit`] type
-pub enum IterInitError<E> {
-    /// If not enough elements were in the iterator to fill up the slice
-    NotEnoughItems,
-    /// If any item in the slice failed to initialize
-    InitError(E),
-}
-
-impl<T: TryPinCtor<I::Item>, I: Iterator> TryPinCtor<IterInit<I>> for [T] {
-    type Error = IterInitError<T::Error>;
-
-    fn try_pin_init(
-        uninit: crate::Uninit<'_, Self>,
-        IterInit(args): IterInit<I>,
-    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
-        let mut writer = PinSliceWriter::new(uninit);
-
-        args.take(writer.remaining_len())
-            // SAFETY: we take up to the remaining length of the writer elements, which means if the closure is called
-            // there is enough space in the writer to initialize an element
-            .try_for_each(|arg| unsafe { writer.try_pin_init_unchecked(arg) })
-            .map_err(IterInitError::InitError)?;
-
-        writer.try_finish().ok_or(IterInitError::NotEnoughItems)
-    }
-}
 
 /// An initializer argument to initialize a slice with the items of the iterator
 ///
@@ -246,24 +314,38 @@ impl<I: ExactSizeIterator> IterLenInit<I> {
     }
 }
 
-// SAFETY: The layout is compatible with cast
-unsafe impl<T, I> LayoutProvider<[T], IterLenInit<I>> for SliceLenLayoutProvider {
-    fn layout_of(args: &IterLenInit<I>) -> Option<Layout> {
-        Layout::array::<T>(args.0).ok()
-    }
+/// An error for the [`IterInit`] type
+pub enum IterInitError<E> {
+    /// If not enough elements were in the iterator to fill up the slice
+    NotEnoughItems,
+    /// If any item in the slice failed to initialize
+    InitError(E),
+}
 
-    unsafe fn cast(ptr: NonNull<u8>, args: &IterLenInit<I>) -> NonNull<[T]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
+mk_ctor! {
+    for<T, I> [T] with (IterInit<I>) (where I: Iterator, T: TryPinCtor<I::Item>,)
+    type Error = IterInitError<T::Error>;
+
+    init(uninit, IterInit(args)) {
+        let mut writer = PinSliceWriter::new(uninit);
+
+        args.take(writer.remaining_len())
+            // SAFETY: we take up to the remaining length of the writer elements, which means if the closure is called
+            // there is enough space in the writer to initialize an element
+            .try_for_each(|arg| unsafe { writer.try_pin_init_unchecked(arg) })
+            .map_err(IterInitError::InitError)?;
+
+        writer.try_finish().ok_or(IterInitError::NotEnoughItems)
     }
 }
 
-impl<T: TryPinCtor<I::Item>, I: Iterator> TryPinCtor<IterLenInit<I>> for [T] {
+mk_ctor! {
+    for<T, I> [T] with (IterLenInit<I>) (where I: Iterator, T: TryPinCtor<I::Item>,)
     type Error = IterInitError<T::Error>;
 
-    fn try_pin_init(
-        uninit: crate::Uninit<'_, Self>,
-        IterLenInit(_, args): IterLenInit<I>,
-    ) -> Result<crate::PinInit<'_, Self>, Self::Error> {
+    layout(args)
+
+    init(uninit, IterLenInit(_, args)) {
         uninit.try_pin_init(IterInit(args))
     }
 }
