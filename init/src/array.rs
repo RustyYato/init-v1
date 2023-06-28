@@ -4,8 +4,6 @@ use core::{alloc::Layout, ptr::NonNull};
 
 use crate::layout_provider::LayoutProvider;
 
-pub mod ctor;
-pub mod pin_ctor;
 pub mod try_ctor;
 pub mod try_pin_ctor;
 

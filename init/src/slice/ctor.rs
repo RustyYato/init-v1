@@ -11,10 +11,118 @@ use crate::{
     Ctor,
 };
 
-impl<T: Ctor> Ctor for [T] {
-    #[inline]
-    fn init(uninit: crate::Uninit<'_, Self>, (): ()) -> crate::Init<'_, Self> {
-        uninit.init(CopyArgs(()))
+use super::SliceLenLayoutProvider;
+
+/// An adapter to convert a slice initializer to an array initializer
+pub struct ArrayAdapter<A>(A);
+
+impl<const N: usize, T, A> Ctor<ArrayAdapter<A>> for [T; N]
+where
+    [T]: Ctor<A>,
+{
+    fn init(uninit: crate::Uninit<'_, Self>, args: ArrayAdapter<A>) -> crate::Init<'_, Self> {
+        let init = uninit.as_slice().init(args.0);
+        // SAFETY: this init is the same array as `uninit`, so it has the right length
+        unsafe { init.into_array_unchecked() }
+    }
+
+    #[doc(hidden)]
+    fn __is_args_clone_cheap() -> bool {
+        <[T] as Ctor<A>>::__is_args_clone_cheap()
+    }
+}
+
+macro_rules! mk_ctor {
+    (
+        for<$T:ident $(, $U:ident)*> [$($slice_ty:tt)*]
+        with ($Arg:ty)
+        $((where $($bounds:tt)*))?
+        $((array_where $($array_bounds:tt)*))?
+        layout($layout_args:ident) $(is_zeroed($zeroed_args:pat) $zeroed_imp:block)?
+        init($uninit:ident, $args:pat) $imp:block
+        $(is_arg_cheap $imp_cheap:block)?
+    ) => {
+        impl<$T $(, $U)*> HasLayoutProvider<$Arg> for [$($slice_ty)*] $(where $($array_bounds)*)? {
+            type LayoutProvider = SliceLenLayoutProvider;
+        }
+
+        // SAFETY: The layout is compatible with cast
+        unsafe impl<$T $(, $U)*> LayoutProvider<[$($slice_ty)*], $Arg> for SliceLenLayoutProvider $(where $($array_bounds)*)? {
+            fn layout_of($layout_args: &$Arg) -> Option<core::alloc::Layout> {
+                Layout::array::<T>($layout_args.0).ok()
+            }
+
+            unsafe fn cast(ptr: NonNull<u8>, $layout_args: &$Arg) -> NonNull<[$($slice_ty)*]> {
+                NonNull::slice_from_raw_parts(ptr.cast(), $layout_args.0)
+            }
+
+            $(
+                fn is_zeroed($zeroed_args: &$Arg) -> bool $zeroed_imp
+            )?
+        }
+
+        mk_ctor! {
+            for<$T $(, $U)*> [$($slice_ty)*]
+            with ($Arg)
+            $((where $($bounds)*))?
+            $((array_where $($array_bounds)*))?
+            $(is_zeroed($zeroed_args) $zeroed_imp)?
+            init($uninit, $args) $imp
+            $(is_arg_cheap $imp_cheap)?
+        }
+    };
+    (
+        for<$T:ident $(, $U:ident)*> [$($slice_ty:tt)*]
+        with ($Arg:ty)
+        $((where $($bounds:tt)*))?
+        $((array_where $($array_bounds:tt)*))?
+        $(is_zeroed($zeroed_args:pat) $zeroed_imp:block)?
+        init($uninit:ident, $args:pat) $imp:block
+        $(is_arg_cheap $imp_cheap:block)?
+    ) => {
+        impl<$T $(, $U)*> Ctor<$Arg> for [$($slice_ty)*] $(where $($bounds)*)? {
+            fn init($uninit: crate::Uninit<'_, Self>, $args: $Arg) -> crate::Init<'_, Self> $imp
+            $(#[doc(hidden)] fn __is_args_clone_cheap() -> bool $imp_cheap)?
+        }
+
+        impl<$T $(, $U)*, const N: usize> HasLayoutProvider<$Arg> for [$($slice_ty)*; N] $(where $($array_bounds)*)? {
+            type LayoutProvider = SliceLenLayoutProvider;
+        }
+
+        // SAFETY: The layout is compatible with cast
+        unsafe impl<$T $(, $U)*, const N: usize> LayoutProvider<[$($slice_ty)*; N], $Arg> for SliceLenLayoutProvider $(where $($array_bounds)*)? {
+            fn layout_of(_: &$Arg) -> Option<core::alloc::Layout> {
+                Some(core::alloc::Layout::new::<[$($slice_ty)*; N]>())
+            }
+
+            unsafe fn cast(ptr: NonNull<u8>, _: &$Arg) -> NonNull<[$($slice_ty)*; N]> {
+                ptr.cast()
+            }
+
+            $(
+                fn is_zeroed($zeroed_args: &$Arg) -> bool $zeroed_imp
+            )?
+        }
+
+        impl<$T $(, $U)*, const N: usize> Ctor<$Arg> for [$($slice_ty)*; N] $(where $($bounds)*)? {
+            fn init(uninit: crate::Uninit<'_, Self>, args: $Arg) -> crate::Init<'_, Self> {
+                uninit.init(ArrayAdapter(args))
+            }
+
+            $(#[doc(hidden)] fn __is_args_clone_cheap() -> bool $imp_cheap)?
+        }
+    };
+}
+
+mk_ctor! {
+    for<T> [MaybeUninit<T>] with (())
+
+    init(uninit, _) {
+        uninit.uninit_slice()
+    }
+
+    is_arg_cheap {
+        true
     }
 }
 
@@ -23,24 +131,17 @@ impl<T: Ctor> Ctor for [T] {
 #[derive(Debug, Clone, Copy)]
 pub struct UninitSliceLen(pub usize);
 
-impl<T> HasLayoutProvider<UninitSliceLen> for [MaybeUninit<T>] {
-    type LayoutProvider = SliceLenLayoutProvider;
-}
+mk_ctor! {
+    for<T> [MaybeUninit<T>] with (UninitSliceLen)
 
-// SAFETY: The layout is compatible with cast
-unsafe impl<T> LayoutProvider<[MaybeUninit<T>], UninitSliceLen> for SliceLenLayoutProvider {
-    fn layout_of(args: &UninitSliceLen) -> Option<core::alloc::Layout> {
-        Layout::array::<T>(args.0).ok()
-    }
+    layout(args)
 
-    unsafe fn cast(ptr: NonNull<u8>, args: &UninitSliceLen) -> NonNull<[MaybeUninit<T>]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
-    }
-}
-
-impl<T> Ctor<UninitSliceLen> for [MaybeUninit<T>] {
-    fn init(uninit: crate::Uninit<'_, Self>, _: UninitSliceLen) -> crate::Init<'_, Self> {
+    init(uninit, _) {
         uninit.uninit_slice()
+    }
+
+    is_arg_cheap {
+        true
     }
 }
 
@@ -49,13 +150,53 @@ impl<T> Ctor<UninitSliceLen> for [MaybeUninit<T>] {
 #[derive(Debug, Clone, Copy)]
 pub struct CopyArgs<Args>(pub Args);
 
-impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
-    #[inline]
-    fn init(
-        uninit: crate::Uninit<'_, Self>,
-        CopyArgs(args): CopyArgs<Args>,
-    ) -> crate::Init<'_, Self> {
+/// A slice constructor which copies the argument and uses it to construct each element of the slice
+///
+/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
+#[derive(Debug, Clone, Copy)]
+pub struct CopyArgsLen<Args>(pub usize, pub Args);
+
+mk_ctor! {
+    for<T, Args> [T] with (CopyArgs<Args>)
+     (where
+        T: Ctor<Args>,
+        Args: Copy)
+    (array_where
+        T: HasLayoutProvider<Args>)
+
+    is_zeroed(CopyArgs(args)) {
+        crate::layout_provider::is_zeroed::<T, Args>(args)
+    }
+
+    init(uninit, CopyArgs(args)) {
         uninit.init(to_ctor(super::try_ctor::CopyArgs(of_ctor(args))))
+    }
+
+    is_arg_cheap {
+        true
+    }
+}
+
+mk_ctor! {
+    for<T, Args> [T] with (CopyArgsLen<Args>)
+     (where
+        T: Ctor<Args>,
+        Args: Copy,)
+    (array_where
+        T: HasLayoutProvider<Args>)
+
+    layout(args)
+
+    is_zeroed(CopyArgsLen(_, args)) {
+        crate::layout_provider::is_zeroed::<T, Args>(args)
+    }
+
+    init(uninit, CopyArgsLen(_, args)) {
+        uninit.init(to_ctor(super::try_ctor::CopyArgs(of_ctor(args))))
+    }
+
+    is_arg_cheap {
+        true
     }
 }
 
@@ -64,100 +205,55 @@ impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgs<Args>> for [T] {
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgs<Args>(pub Args);
 
-impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgs<Args>> for [T] {
-    #[inline]
-    fn init(
-        uninit: crate::Uninit<'_, Self>,
-        CloneArgs(args): CloneArgs<Args>,
-    ) -> crate::Init<'_, Self> {
-        uninit.init(to_ctor(super::try_ctor::CloneArgs(of_ctor(args))))
-    }
-}
-
-/// A slice constructor which copies the argument and uses it to construct each element of the slice
-///
-/// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
-#[derive(Debug, Clone, Copy)]
-pub struct CopyArgsLen<Args>(pub usize, pub Args);
-
-impl<T, Args: Copy> HasLayoutProvider<CopyArgsLen<Args>> for [T]
-where
-    T: HasLayoutProvider<Args>,
-{
-    type LayoutProvider = SliceLenLayoutProvider;
-}
-
-// SAFETY: The layout is compatible with cast
-unsafe impl<T, Args: Copy> LayoutProvider<[T], CopyArgsLen<Args>> for SliceLenLayoutProvider
-where
-    T: HasLayoutProvider<Args>,
-{
-    fn layout_of(args: &CopyArgsLen<Args>) -> Option<Layout> {
-        Layout::array::<T>(args.0).ok()
-    }
-
-    unsafe fn cast(ptr: NonNull<u8>, args: &CopyArgsLen<Args>) -> NonNull<[T]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
-    }
-
-    fn is_zeroed(CopyArgsLen(_, args): &CopyArgsLen<Args>) -> bool {
-        crate::layout_provider::is_zeroed::<T, Args>(args)
-    }
-}
-
-impl<T: Ctor<Args>, Args: Copy> Ctor<CopyArgsLen<Args>> for [T] {
-    #[inline]
-    fn init(
-        uninit: crate::Uninit<'_, Self>,
-        CopyArgsLen(_, args): CopyArgsLen<Args>,
-    ) -> crate::Init<'_, Self> {
-        uninit.init(CopyArgs(args))
-    }
-}
-
 /// A slice constructor which clones the argument and uses it to construct each element of the slice
 ///
 /// It also has a `LayoutProvider` which allocates enough spaces for `self.0` items
 #[derive(Debug, Clone, Copy)]
 pub struct CloneArgsLen<Args>(pub usize, pub Args);
 
-impl<T, Args: Clone> HasLayoutProvider<CloneArgsLen<Args>> for [T]
-where
-    T: HasLayoutProvider<Args>,
-{
-    type LayoutProvider = SliceLenLayoutProvider;
-}
+mk_ctor! {
+    for<T, Args> [T] with (CloneArgs<Args>)
+     (where
+        T: Ctor<Args>,
+        Args: Clone)
+    (array_where
+        T: HasLayoutProvider<Args>)
 
-// SAFETY: The layout is compatible with cast
-unsafe impl<T, Args: Clone> LayoutProvider<[T], CloneArgsLen<Args>> for SliceLenLayoutProvider
-where
-    T: HasLayoutProvider<Args>,
-{
-    fn layout_of(args: &CloneArgsLen<Args>) -> Option<Layout> {
-        Layout::array::<T>(args.0).ok()
-    }
-
-    unsafe fn cast(ptr: NonNull<u8>, args: &CloneArgsLen<Args>) -> NonNull<[T]> {
-        NonNull::slice_from_raw_parts(ptr.cast(), args.0)
-    }
-
-    fn is_zeroed(CloneArgsLen(_, args): &CloneArgsLen<Args>) -> bool {
+    is_zeroed(CloneArgs(args)) {
         crate::layout_provider::is_zeroed::<T, Args>(args)
     }
-}
 
-impl<T: Ctor<Args>, Args: Clone> Ctor<CloneArgsLen<Args>> for [T] {
-    #[inline]
-    fn init(
-        uninit: crate::Uninit<'_, Self>,
-        CloneArgsLen(_, args): CloneArgsLen<Args>,
-    ) -> crate::Init<'_, Self> {
-        uninit.init(CloneArgs(args))
+    init(uninit, CloneArgs(args)) {
+        uninit.init(to_ctor(super::try_ctor::CloneArgs(of_ctor(args))))
+    }
+
+    is_arg_cheap {
+        T::__is_args_clone_cheap()
     }
 }
 
-/// A layout provider for slices
-pub struct SliceLenLayoutProvider;
+mk_ctor! {
+    for<T, Args> [T] with (CloneArgsLen<Args>)
+     (where
+        T: Ctor<Args>,
+        Args: Clone)
+    (array_where
+        T: HasLayoutProvider<Args>)
+
+    layout(args)
+
+    is_zeroed(CloneArgsLen(_, args)) {
+        crate::layout_provider::is_zeroed::<T, Args>(args)
+    }
+
+    init(uninit, CloneArgsLen(_, args)) {
+        uninit.init(to_ctor(super::try_ctor::CloneArgs(of_ctor(args))))
+    }
+
+    is_arg_cheap {
+        T::__is_args_clone_cheap()
+    }
+}
 
 impl<T: MoveCtor> MoveCtor for [T] {
     const IS_MOVE_TRIVIAL: ConfigValue<Self, MoveTag> = {
