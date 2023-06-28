@@ -8,7 +8,7 @@ use alloc::{
 };
 
 use crate::{
-    layout_provider::{self as lp, HasLayoutProvider},
+    layout_provider::{HasLayoutProvider, LayoutProvider},
     CtorArgs, PinCtor, TryCtorArgs, TryPinCtor, Uninit,
 };
 
@@ -19,7 +19,18 @@ pub fn pin_boxed<T, Args>(args: Args) -> Pin<Box<T>>
 where
     T: ?Sized + PinCtor<Args> + HasLayoutProvider<Args>,
 {
-    match try_pin_boxed(crate::try_pin_ctor::of_pin_ctor(args)) {
+    pin_boxed_with::<T, Args, T::LayoutProvider>(args)
+}
+
+/// Create a new value of the heap, initializing it in place
+pub fn pin_boxed_with<T, Args, L>(args: Args) -> Pin<Box<T>>
+where
+    T: ?Sized + PinCtor<Args>,
+    L: LayoutProvider<T, Args>,
+{
+    match try_pin_boxed_with::<T, _, crate::try_pin_ctor::OfPinCtorLayoutProvider<L>>(
+        crate::try_pin_ctor::of_pin_ctor(args),
+    ) {
         Ok(bx) => bx,
         Err(err) => err.handle(),
     }
@@ -30,8 +41,16 @@ pub fn try_pin_boxed<T, Args>(args: Args) -> Result<Pin<Box<T>>, TryBoxedError<T
 where
     T: ?Sized + TryPinCtor<Args> + HasLayoutProvider<Args>,
 {
-    let layout = lp::layout_of::<T, Args>(&args).ok_or(TryBoxedError::LayoutError)?;
-    let is_zeroed = lp::is_zeroed::<T, Args>(&args);
+    try_pin_boxed_with::<T, Args, T::LayoutProvider>(args)
+}
+/// Create a new value of the heap, initializing it in place
+pub fn try_pin_boxed_with<T, Args, L>(args: Args) -> Result<Pin<Box<T>>, TryBoxedError<T::Error>>
+where
+    T: ?Sized + TryPinCtor<Args>,
+    L: LayoutProvider<T, Args>,
+{
+    let layout = L::layout_of(&args).ok_or(TryBoxedError::LayoutError)?;
+    let is_zeroed = L::is_zeroed(&args);
 
     let ptr = if layout.size() == 0 {
         layout.align() as *mut u8
@@ -48,7 +67,7 @@ where
     };
 
     // SAFETY: `lp::layout_of` returned a layout
-    let ptr = unsafe { lp::cast::<T, Args>(ptr, &args) };
+    let ptr = unsafe { L::cast(ptr, &args) };
 
     // SAFETY: if the layout provider says the argument just zeros the memory with no side effects
     // then we can skip initialization

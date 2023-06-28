@@ -8,7 +8,7 @@ use alloc::{
 };
 
 use crate::{
-    layout_provider::{self as lp, HasLayoutProvider},
+    layout_provider::{HasLayoutProvider, LayoutProvider},
     Ctor, CtorArgs, TryCtor, TryCtorArgs, Uninit,
 };
 
@@ -18,6 +18,20 @@ where
     T: ?Sized + Ctor<Args> + HasLayoutProvider<Args>,
 {
     match try_boxed(crate::try_ctor::of_ctor(args)) {
+        Ok(bx) => bx,
+        Err(err) => err.handle(),
+    }
+}
+
+/// Create a new value of the heap, initializing it in place
+pub fn boxed_with<T, Args, L>(args: Args) -> Box<T>
+where
+    T: ?Sized + Ctor<Args>,
+    L: LayoutProvider<T, Args>,
+{
+    match try_boxed_with::<T, _, crate::try_ctor::OfCtorLayoutProvider<L>>(
+        crate::try_ctor::of_ctor(args),
+    ) {
         Ok(bx) => bx,
         Err(err) => err.handle(),
     }
@@ -65,8 +79,17 @@ pub fn try_boxed<T, Args>(args: Args) -> Result<Box<T>, TryBoxedError<T::Error>>
 where
     T: ?Sized + TryCtor<Args> + HasLayoutProvider<Args>,
 {
-    let layout = lp::layout_of::<T, Args>(&args).ok_or(TryBoxedError::LayoutError)?;
-    let is_zeroed = lp::is_zeroed::<T, Args>(&args);
+    try_boxed_with::<T, Args, T::LayoutProvider>(args)
+}
+
+/// Create a new value of the heap, initializing it in place
+pub fn try_boxed_with<T, Args, L>(args: Args) -> Result<Box<T>, TryBoxedError<T::Error>>
+where
+    T: ?Sized + TryCtor<Args>,
+    L: LayoutProvider<T, Args>,
+{
+    let layout = L::layout_of(&args).ok_or(TryBoxedError::LayoutError)?;
+    let is_zeroed = L::is_zeroed(&args);
 
     let ptr = if layout.size() == 0 {
         layout.align() as *mut u8
@@ -83,7 +106,7 @@ where
     };
 
     // SAFETY: `lp::layout_of` returned a layout
-    let ptr = unsafe { lp::cast::<T, Args>(ptr, &args) };
+    let ptr = unsafe { L::cast(ptr, &args) };
 
     // SAFETY: if the layout provider says the argument just zeros the memory with no side effects
     // then we can skip initialization

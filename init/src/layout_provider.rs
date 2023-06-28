@@ -62,7 +62,7 @@ pub trait HasLayoutProvider<Args: ?Sized = ()> {
 /// and that if `Self::layout(ptr, &args)` returns a `Layout`, that
 /// the layout fits the pointer returned by `Self::cast(ptr, &args)`
 /// with the same args
-pub unsafe trait LayoutProvider<T: ?Sized, Args: ?Sized = ()> {
+pub unsafe trait LayoutProvider<T: ?Sized, Args: ?Sized = ()>: Sized {
     /// The layout of the type for the given arguments
     fn layout_of(args: &Args) -> Option<Layout>;
 
@@ -85,7 +85,7 @@ pub unsafe trait LayoutProvider<T: ?Sized, Args: ?Sized = ()> {
 pub struct SizedLayoutProvider;
 
 // SAFETY: The layout of a sized type doesn't depend on the argument type
-unsafe impl<T: HasLayoutProvider<Args>, Args> LayoutProvider<T, Args> for SizedLayoutProvider {
+unsafe impl<T, Args> LayoutProvider<T, Args> for SizedLayoutProvider {
     #[inline]
     fn layout_of(_: &Args) -> Option<Layout> {
         Some(Layout::new::<T>())

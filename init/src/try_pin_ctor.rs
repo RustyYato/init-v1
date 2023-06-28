@@ -105,18 +105,18 @@ impl<T: ?Sized + PinCtor<Args>, Args, Err> TryPinCtorArgs<T> for OfPinCtor<Args,
 impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, Err>
     crate::layout_provider::HasLayoutProvider<OfPinCtor<Args, Err>> for T
 {
-    type LayoutProvider = OfPinCtorLayoutProvider;
+    type LayoutProvider = OfPinCtorLayoutProvider<T::LayoutProvider>;
 }
 
 /// The layout provider for `OfPinCtor`
-pub struct OfPinCtorLayoutProvider;
+pub struct OfPinCtorLayoutProvider<L>(L);
 
 // SAFETY: guaranteed by T::LayoutProvider
-unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, Err>
-    crate::layout_provider::LayoutProvider<T, OfPinCtor<Args, Err>> for OfPinCtorLayoutProvider
+unsafe impl<T: ?Sized, Args, Err, L: crate::layout_provider::LayoutProvider<T, Args>>
+    crate::layout_provider::LayoutProvider<T, OfPinCtor<Args, Err>> for OfPinCtorLayoutProvider<L>
 {
     fn layout_of(OfPinCtor(args, _): &OfPinCtor<Args, Err>) -> Option<core::alloc::Layout> {
-        crate::layout_provider::layout_of::<T, Args>(args)
+        L::layout_of(args)
     }
 
     unsafe fn cast(
@@ -124,11 +124,11 @@ unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, E
         OfPinCtor(args, _): &OfPinCtor<Args, Err>,
     ) -> core::ptr::NonNull<T> {
         // SAFETY: guaranteed by caller
-        unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
+        unsafe { L::cast(ptr, args) }
     }
 
     fn is_zeroed(OfPinCtor(args, _): &OfPinCtor<Args, Err>) -> bool {
-        crate::layout_provider::is_zeroed::<T, Args>(args)
+        L::is_zeroed(args)
     }
 }
 
@@ -167,18 +167,18 @@ impl<T: ?Sized + TryPinCtor<Args, Error = core::convert::Infallible>, Args> PinC
 impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
     crate::layout_provider::HasLayoutProvider<ToPinCtor<Args>> for T
 {
-    type LayoutProvider = ToPinCtorLayoutProvider;
+    type LayoutProvider = ToPinCtorLayoutProvider<T::LayoutProvider>;
 }
 
 /// The layout provider for `ToPinCtor`
-pub struct ToPinCtorLayoutProvider;
+pub struct ToPinCtorLayoutProvider<L>(PhantomData<L>);
 
 // SAFETY: guaranteed by T::LayoutProvider
-unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
-    crate::layout_provider::LayoutProvider<T, ToPinCtor<Args>> for ToPinCtorLayoutProvider
+unsafe impl<T: ?Sized, Args, L: crate::layout_provider::LayoutProvider<T, Args>>
+    crate::layout_provider::LayoutProvider<T, ToPinCtor<Args>> for ToPinCtorLayoutProvider<L>
 {
     fn layout_of(ToPinCtor(args): &ToPinCtor<Args>) -> Option<core::alloc::Layout> {
-        crate::layout_provider::layout_of::<T, Args>(args)
+        L::layout_of(args)
     }
 
     unsafe fn cast(
@@ -186,11 +186,11 @@ unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
         ToPinCtor(args): &ToPinCtor<Args>,
     ) -> core::ptr::NonNull<T> {
         // SAFETY: guaranteed by caller
-        unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
+        unsafe { L::cast(ptr, args) }
     }
 
     fn is_zeroed(ToPinCtor(args): &ToPinCtor<Args>) -> bool {
-        crate::layout_provider::is_zeroed::<T, Args>(args)
+        L::is_zeroed(args)
     }
 }
 

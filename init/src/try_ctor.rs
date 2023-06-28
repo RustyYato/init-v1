@@ -116,18 +116,18 @@ impl<T: ?Sized + Ctor<Args>, Args, Err> TryCtorArgs<T> for OfCtor<Args, Err> {
 impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, Err>
     crate::layout_provider::HasLayoutProvider<OfCtor<Args, Err>> for T
 {
-    type LayoutProvider = OfCtorLayoutProvider;
+    type LayoutProvider = OfCtorLayoutProvider<T::LayoutProvider>;
 }
 
 /// The layout provider for `OfCtor`
-pub struct OfCtorLayoutProvider;
+pub struct OfCtorLayoutProvider<L>(L);
 
 // SAFETY: guaranteed by T::LayoutProvider
-unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, Err>
-    crate::layout_provider::LayoutProvider<T, OfCtor<Args, Err>> for OfCtorLayoutProvider
+unsafe impl<T: ?Sized, Args, Err, L: crate::layout_provider::LayoutProvider<T, Args>>
+    crate::layout_provider::LayoutProvider<T, OfCtor<Args, Err>> for OfCtorLayoutProvider<L>
 {
     fn layout_of(OfCtor(args, _): &OfCtor<Args, Err>) -> Option<core::alloc::Layout> {
-        crate::layout_provider::layout_of::<T, Args>(args)
+        L::layout_of(args)
     }
 
     unsafe fn cast(
@@ -135,11 +135,11 @@ unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args, E
         OfCtor(args, _): &OfCtor<Args, Err>,
     ) -> core::ptr::NonNull<T> {
         // SAFETY: guaranteed by caller
-        unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
+        unsafe { L::cast(ptr, args) }
     }
 
     fn is_zeroed(OfCtor(args, _): &OfCtor<Args, Err>) -> bool {
-        crate::layout_provider::is_zeroed::<T, Args>(args)
+        L::is_zeroed(args)
     }
 }
 
@@ -178,18 +178,18 @@ impl<T: ?Sized + TryCtor<Args, Error = core::convert::Infallible>, Args> CtorArg
 impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
     crate::layout_provider::HasLayoutProvider<ToCtor<Args>> for T
 {
-    type LayoutProvider = ToCtorLayoutProvider;
+    type LayoutProvider = ToCtorLayoutProvider<T::LayoutProvider>;
 }
 
 /// The layout provider for `ToCtor`
-pub struct ToCtorLayoutProvider;
+pub struct ToCtorLayoutProvider<L>(L);
 
 // SAFETY: guaranteed by T::LayoutProvider
-unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
-    crate::layout_provider::LayoutProvider<T, ToCtor<Args>> for ToCtorLayoutProvider
+unsafe impl<T: ?Sized, Args, L: crate::layout_provider::LayoutProvider<T, Args>>
+    crate::layout_provider::LayoutProvider<T, ToCtor<Args>> for ToCtorLayoutProvider<L>
 {
     fn layout_of(ToCtor(args): &ToCtor<Args>) -> Option<core::alloc::Layout> {
-        crate::layout_provider::layout_of::<T, Args>(args)
+        L::layout_of(args)
     }
 
     unsafe fn cast(
@@ -197,11 +197,11 @@ unsafe impl<T: ?Sized + crate::layout_provider::HasLayoutProvider<Args>, Args>
         ToCtor(args): &ToCtor<Args>,
     ) -> core::ptr::NonNull<T> {
         // SAFETY: guaranteed by caller
-        unsafe { crate::layout_provider::cast::<T, Args>(ptr, args) }
+        unsafe { L::cast(ptr, args) }
     }
 
     fn is_zeroed(ToCtor(args): &ToCtor<Args>) -> bool {
-        crate::layout_provider::is_zeroed::<T, Args>(args)
+        L::is_zeroed(args)
     }
 }
 
