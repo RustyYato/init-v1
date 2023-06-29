@@ -153,7 +153,12 @@ impl<T> ThinPinVec<T> {
         unsafe { (*self.as_header_ptr()).len }
     }
 
-    pub fn set_len(&mut self, len: usize) {
+    /// # Safety
+    ///
+    /// All elements up to the length must be initialized
+    ///
+    /// If the length is smaller than the current length, then all remaining elements must be dropped
+    pub unsafe fn set_len(&mut self, len: usize) {
         if self.capacity() != 0 {
             // SAFETY: this pointer is valid because the ThinPinVec guarantees it
             unsafe { (*self.as_header_mut_ptr()).len = len }
@@ -202,7 +207,8 @@ impl<T> ThinPinVec<T> {
     /// You must drop all elements or use a `[Try]PinCtor` to move them to another location
     pub unsafe fn take_items(&mut self) -> init::PinInit<'_, [T]> {
         let len = self.len();
-        self.set_len(0);
+        // SAFETY: All items will be dropped, as enforced by the caller
+        unsafe { self.set_len(0) }
 
         let slice = core::ptr::slice_from_raw_parts_mut(self.as_mut_ptr(), len);
 
@@ -507,7 +513,10 @@ impl<T: PinCloneCtor> CloneCtor for ThinPinVec<T> {
         };
 
         vec_data.pin_init(slice).take_ownership();
-        vec.set_len(slice.len());
+
+        // SAFETY: all items in slice were copied over to the vector, so we have slice.len()
+        // initialized elements
+        unsafe { vec.set_len(slice.len()) }
 
         uninit.write(vec)
     }
