@@ -507,6 +507,7 @@ impl<T: PinCloneCtor> CloneCtor for ThinPinVec<T> {
         };
 
         vec_data.pin_init(slice).take_ownership();
+        vec.set_len(slice.len());
 
         uninit.write(vec)
     }

@@ -4,7 +4,7 @@ use std::{
     alloc::Layout,
     cell::{Cell, UnsafeCell},
     marker::{PhantomData, PhantomPinned},
-    ops::{Add, Deref},
+    ops::Deref,
     pin::Pin,
 };
 
