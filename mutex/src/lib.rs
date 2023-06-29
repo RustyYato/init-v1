@@ -233,7 +233,7 @@ unsafe impl<T: ?Sized + HasLayoutProvider> LayoutProvider<Mutex<T>> for MutexLay
     fn layout_of((): &()) -> Option<std::alloc::Layout> {
         let lock = Layout::new::<PThreadMutex>();
         let value = init::layout_provider::layout_of::<T, ()>(&())?;
-        Some(lock.extend(value).ok()?.0)
+        Some(lock.extend(value).ok()?.0.pad_to_align())
     }
 
     unsafe fn cast(ptr: std::ptr::NonNull<u8>, (): &()) -> std::ptr::NonNull<Mutex<T>> {
