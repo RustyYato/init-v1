@@ -125,12 +125,12 @@ fn test_u8() {
 
 #[test]
 fn test_slice() {
-    let bx = ThinBox::<[u8]>::new(init::slice::CopyArgsLen(10, ()));
+    let bx = ThinBox::<[u8]>::new(init::slice::ctor::CopyArgsLen(10, ()));
     assert_eq!(*bx, [0; 10]);
 }
 
 #[test]
 fn test_slice_nonzero() {
-    let bx = ThinBox::<[u8]>::new(init::slice::CopyArgsLen(10, 100));
+    let bx = ThinBox::<[u8]>::new(init::slice::ctor::CopyArgsLen(10, 100));
     assert_eq!(*bx, [100; 10]);
 }
