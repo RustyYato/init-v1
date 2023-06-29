@@ -91,14 +91,7 @@ impl<T> Drop for ThinPinVec<T> {
 impl<T> ThinPinVec<T> {
     const EMPTY_DATA: WithHeader<VecDataSized<T, 0>, usize> = WithHeader {
         metadata: 0,
-        value: VecDataSized {
-            len: if core::mem::size_of::<T>() == 0 {
-                usize::MAX
-            } else {
-                0
-            },
-            data: [],
-        },
+        value: VecDataSized { len: 0, data: [] },
     };
 
     const EMPTY_RAW: *const WithHeader<VecData<T>, usize> = &Self::EMPTY_DATA;
@@ -140,11 +133,17 @@ impl<T> ThinPinVec<T> {
     }
 
     pub fn capacity(&self) -> usize {
+        // SAFETY: this pointer is valid because the ThinPinVec guarantees it
+        let capacity = unsafe { (*self.as_header_ptr()).capacity };
+
         if core::mem::size_of::<T>() == 0 {
-            usize::MAX
+            if capacity == 0 {
+                0
+            } else {
+                usize::MAX
+            }
         } else {
-            // SAFETY: We're not in the
-            unsafe { (*self.as_header_ptr()).capacity }
+            capacity
         }
     }
 
@@ -307,12 +306,6 @@ impl<T: PinMoveCtor> ThinPinVec<T> {
     #[cold]
     #[inline(never)]
     fn reserve_inner(&mut self, additional: usize) {
-        assert_ne!(
-            core::mem::size_of::<T>(),
-            0,
-            "Tried to allocate more than usize::MAX zero-sized elements"
-        );
-
         let new_capacity = self.capacity().wrapping_mul(2).max(4).max(
             self.len()
                 .checked_add(additional)
@@ -320,7 +313,7 @@ impl<T: PinMoveCtor> ThinPinVec<T> {
         );
 
         if self.capacity() == 0 {
-            self.reserve_first(new_capacity)
+            self.reserve_first(new_capacity);
         } else if self.is_empty() || T::IS_MOVE_TRIVIAL.get() {
             self.reserve_realloc(new_capacity)
         } else {
@@ -539,4 +532,11 @@ fn test_pin_vec() {
     for (i, &x) in vec.as_slice().iter().enumerate() {
         assert_eq!(i, x as usize);
     }
+}
+
+#[test]
+fn test_pin_vec_zst() {
+    let mut vec = ThinPinVec::<()>::new();
+
+    vec.emplace(());
 }

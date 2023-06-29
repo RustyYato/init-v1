@@ -287,6 +287,101 @@ impl Ctor for () {
     }
 }
 
+impl PinCtor for () {
+    #[inline]
+    fn pin_init(uninit: crate::Uninit<'_, Self>, (): ()) -> crate::PinInit<'_, Self> {
+        uninit.write(()).pin()
+    }
+}
+
+impl MoveCtor for () {
+    const IS_MOVE_TRIVIAL: ConfigValue<Self, MoveTag> = {
+        // SAFETY: all primitive types are trivially movable
+        unsafe { ConfigValue::yes() }
+    };
+    #[inline]
+    fn move_ctor<'this>(
+        uninit: crate::Uninit<'this, Self>,
+        _: crate::Init<Self>,
+    ) -> crate::Init<'this, Self> {
+        uninit.write(())
+    }
+}
+
+impl TakeCtor for () {
+    const IS_TAKE_TRIVIAL: ConfigValue<Self, TakeTag> = {
+        // SAFETY: all primitive types are trivially takable
+        unsafe { ConfigValue::yes() }
+    };
+
+    #[inline]
+    fn take_ctor<'this>(
+        uninit: crate::Uninit<'this, Self>,
+        (): &mut Self,
+    ) -> crate::Init<'this, Self> {
+        uninit.write(())
+    }
+}
+
+impl CloneCtor for () {
+    const IS_CLONE_TRIVIAL: ConfigValue<Self, CloneTag> = {
+        // SAFETY: all primitive types are trivially clone-able
+        unsafe { ConfigValue::yes() }
+    };
+
+    #[inline]
+    fn clone_ctor<'this>(
+        uninit: crate::Uninit<'this, Self>,
+        (): &Self,
+    ) -> crate::Init<'this, Self> {
+        uninit.write(())
+    }
+}
+
+impl PinMoveCtor for () {
+    const IS_MOVE_TRIVIAL: ConfigValue<Self, PinMoveTag> = {
+        // SAFETY: all primitive types are trivially movable
+        unsafe { ConfigValue::yes() }
+    };
+
+    #[inline]
+    fn pin_move_ctor<'this>(
+        uninit: crate::Uninit<'this, Self>,
+        _: crate::PinInit<Self>,
+    ) -> crate::PinInit<'this, Self> {
+        uninit.write(()).pin()
+    }
+}
+
+impl PinTakeCtor for () {
+    const IS_TAKE_TRIVIAL: ConfigValue<Self, PinTakeTag> = {
+        // SAFETY: all primitive types are trivially takable
+        unsafe { ConfigValue::yes() }
+    };
+
+    #[inline]
+    fn pin_take_ctor<'this>(
+        uninit: crate::Uninit<'this, Self>,
+        _: Pin<&mut Self>,
+    ) -> crate::PinInit<'this, Self> {
+        uninit.write(()).pin()
+    }
+}
+
+impl PinCloneCtor for () {
+    const IS_CLONE_TRIVIAL: ConfigValue<Self, PinCloneTag> = {
+        // SAFETY: all primitive types are trivially clone-able
+        unsafe { ConfigValue::yes() }
+    };
+
+    #[inline]
+    fn pin_clone_ctor<'this>(
+        uninit: crate::Uninit<'this, Self>,
+        _: Pin<&Self>,
+    ) -> crate::PinInit<'this, Self> {
+        uninit.write(()).pin()
+    }
+}
 /// A constructor for an [`UnsafeCell`]
 pub struct NewUnsafeCell<T>(pub T);
 
