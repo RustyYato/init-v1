@@ -451,7 +451,7 @@ impl<T> PinMoveCtor for ThinPinVec<T> {
     }
 }
 
-impl<T: PinTakeCtor> PinTakeCtor for ThinPinVec<T> {
+impl<T> PinTakeCtor for ThinPinVec<T> {
     fn pin_take_ctor<'this>(
         uninit: init::Uninit<'this, Self>,
         p: core::pin::Pin<&mut Self>,
@@ -483,25 +483,13 @@ impl<T> MoveCtor for ThinPinVec<T> {
     }
 }
 
-impl<T: PinTakeCtor> TakeCtor for ThinPinVec<T> {
+impl<T> TakeCtor for ThinPinVec<T> {
     fn take_ctor<'this>(
         uninit: init::Uninit<'this, Self>,
         p: &mut Self,
     ) -> init::Init<'this, Self> {
-        let slice = p.as_pin_slice_mut();
-        let mut vec = Self::with_capacity(slice.len());
-
-        // SAFETY: the slice and all elements are pinned
-        let slice = unsafe { Pin::into_inner_unchecked(slice) };
-
-        for item in slice {
-            // SAFETY: the slice and all elements are pinned
-            let item = unsafe { Pin::new_unchecked(item) };
-            // SAFETY: the vector has enough capacity to hold the entire slice
-            unsafe { vec.emplace_unchecked(item) }
-        }
-
-        uninit.write(vec)
+        let this = core::mem::replace(p, Self::new());
+        uninit.write(this)
     }
 }
 
