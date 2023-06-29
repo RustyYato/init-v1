@@ -3,12 +3,13 @@
 //! and guarantees that the values will be dropped before the underling memory is freed
 #![forbid(clippy::undocumented_unsafe_blocks)]
 
-use core::{alloc::Layout, mem::MaybeUninit, ptr::NonNull};
+use core::{alloc::Layout, marker::PhantomData, mem::MaybeUninit, pin::Pin, ptr::NonNull};
 
 use alloc::alloc::handle_alloc_error;
 use init::{
+    ctor::{CloneCtor, MoveCtor, TakeCtor},
     layout_provider::{HasLayoutProvider, LayoutProvider},
-    pin_ctor::PinMoveCtor,
+    pin_ctor::{PinCloneCtor, PinMoveCtor, PinTakeCtor},
     try_pin_ctor::of_pin_ctor,
     Ctor, PinCtor, TryPinCtor,
 };
@@ -21,7 +22,10 @@ use crate::{
 /// A thin vector which stores the length and capacity on the heap
 pub struct ThinPinVec<T> {
     ptr: RawThinPtr<VecData<T>, usize>,
+    _drop: PhantomData<T>,
 }
+
+impl<T> Unpin for ThinPinVec<T> {}
 
 #[repr(C)]
 struct VecDataInner<T: ?Sized> {
@@ -107,6 +111,7 @@ impl<T> ThinPinVec<T> {
     pub const fn new() -> Self {
         Self {
             ptr: RawThinPtr::from_raw(Self::EMPTY),
+            _drop: PhantomData,
         }
     }
 
@@ -120,7 +125,10 @@ impl<T> ThinPinVec<T> {
 
         let ptr = ThinBox::into_raw(bx);
 
-        Self { ptr }
+        Self {
+            ptr,
+            _drop: PhantomData,
+        }
     }
 
     fn as_header_ptr(&self) -> *const VecDataHeader<T> {
@@ -175,6 +183,18 @@ impl<T> ThinPinVec<T> {
     pub fn as_slice(&self) -> &[T] {
         // SAFETY: length represents the number of initialized elements that this vector points to
         unsafe { core::slice::from_raw_parts::<T>(self.as_ptr(), self.len()) }
+    }
+
+    pub fn as_pin_slice(&self) -> Pin<&[T]> {
+        // SAFETY: All elements in this vector are pinned
+        unsafe { Pin::new_unchecked(self.as_slice()) }
+    }
+
+    pub fn as_pin_slice_mut(&mut self) -> Pin<&mut [T]> {
+        // SAFETY: length represents the number of initialized elements that this vector points to
+        let slice = unsafe { core::slice::from_raw_parts_mut::<T>(self.as_mut_ptr(), self.len()) };
+        // SAFETY: All elements in this vector are pinned
+        unsafe { Pin::new_unchecked(slice) }
     }
 
     /// # Safety
@@ -414,6 +434,93 @@ impl<T> Ctor<WithCapacity> for VecData<T> {
                 data: ()
             }
         }
+    }
+}
+
+impl<T> PinMoveCtor for ThinPinVec<T> {
+    const IS_MOVE_TRIVIAL: init::config_value::ConfigValue<Self, init::config_value::PinMoveTag> = {
+        // SAFETY: The move-ctor just copies the pointer
+        unsafe { init::config_value::ConfigValue::yes() }
+    };
+
+    fn pin_move_ctor<'this>(
+        uninit: init::Uninit<'this, Self>,
+        p: init::PinInit<Self>,
+    ) -> init::PinInit<'this, Self> {
+        uninit.init(init::PinInit::into_inner(p)).pin()
+    }
+}
+
+impl<T: PinTakeCtor> PinTakeCtor for ThinPinVec<T> {
+    fn pin_take_ctor<'this>(
+        uninit: init::Uninit<'this, Self>,
+        p: core::pin::Pin<&mut Self>,
+    ) -> init::PinInit<'this, Self> {
+        uninit.init(Pin::into_inner(p)).pin()
+    }
+}
+
+impl<T: PinCloneCtor> PinCloneCtor for ThinPinVec<T> {
+    fn pin_clone_ctor<'this>(
+        uninit: init::Uninit<'this, Self>,
+        p: Pin<&Self>,
+    ) -> init::PinInit<'this, Self> {
+        uninit.init(Pin::into_inner(p)).pin()
+    }
+}
+
+impl<T> MoveCtor for ThinPinVec<T> {
+    const IS_MOVE_TRIVIAL: init::config_value::ConfigValue<Self, init::config_value::MoveTag> = {
+        // SAFETY: The move-ctor just copies the pointer
+        unsafe { init::config_value::ConfigValue::yes() }
+    };
+
+    fn move_ctor<'this>(
+        uninit: init::Uninit<'this, Self>,
+        p: init::Init<Self>,
+    ) -> init::Init<'this, Self> {
+        uninit.write(p.into_inner())
+    }
+}
+
+impl<T: PinTakeCtor> TakeCtor for ThinPinVec<T> {
+    fn take_ctor<'this>(
+        uninit: init::Uninit<'this, Self>,
+        p: &mut Self,
+    ) -> init::Init<'this, Self> {
+        let slice = p.as_pin_slice_mut();
+        let mut vec = Self::with_capacity(slice.len());
+
+        // SAFETY: the slice and all elements are pinned
+        let slice = unsafe { Pin::into_inner_unchecked(slice) };
+
+        for item in slice {
+            // SAFETY: the slice and all elements are pinned
+            let item = unsafe { Pin::new_unchecked(item) };
+            // SAFETY: the vector has enough capacity to hold the entire slice
+            unsafe { vec.emplace_unchecked(item) }
+        }
+
+        uninit.write(vec)
+    }
+}
+
+impl<T: PinCloneCtor> CloneCtor for ThinPinVec<T> {
+    fn clone_ctor<'this>(uninit: init::Uninit<'this, Self>, p: &Self) -> init::Init<'this, Self> {
+        let slice = p.as_pin_slice();
+        let mut vec = Self::with_capacity(slice.len());
+
+        // SAFETY: the slice and all elements are pinned
+        let slice = unsafe { Pin::into_inner_unchecked(slice) };
+
+        for item in slice {
+            // SAFETY: the slice and all elements are pinned
+            let item = unsafe { Pin::new_unchecked(item) };
+            // SAFETY: the vector has enough capacity to hold the entire slice
+            unsafe { vec.emplace_unchecked(item) }
+        }
+
+        uninit.write(vec)
     }
 }
 
