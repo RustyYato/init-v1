@@ -349,7 +349,7 @@ impl<T: PinCloneCtor> PinCloneCtor for [T] {
             length_error(uninit.len(), p.len())
         }
 
-        if T::IS_TAKE_TRIVIAL.get() {
+        if T::IS_CLONE_TRIVIAL.get() {
             // SAFETY: `T::IS_TAKE_TRIVIAL` guarantees that this is safe
             unsafe { uninit.copy_from_slice_unchecked(&p) }.pin()
         } else {

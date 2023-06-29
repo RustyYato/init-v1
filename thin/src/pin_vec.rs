@@ -498,17 +498,23 @@ impl<T: PinCloneCtor> CloneCtor for ThinPinVec<T> {
         let slice = p.as_pin_slice();
         let mut vec = Self::with_capacity(slice.len());
 
-        // SAFETY: the slice and all elements are pinned
-        let slice = unsafe { Pin::into_inner_unchecked(slice) };
+        // SAFETY: vec's data is aligned, and writable
+        let vec_data = unsafe {
+            init::Uninit::from_raw(core::ptr::slice_from_raw_parts_mut(
+                vec.as_mut_ptr(),
+                slice.len(),
+            ))
+        };
 
-        for item in slice {
-            // SAFETY: the slice and all elements are pinned
-            let item = unsafe { Pin::new_unchecked(item) };
-            // SAFETY: the vector has enough capacity to hold the entire slice
-            unsafe { vec.emplace_unchecked(item) }
-        }
+        vec_data.pin_init(slice).take_ownership();
 
         uninit.write(vec)
+    }
+}
+
+impl<T: PinCloneCtor> Clone for ThinPinVec<T> {
+    fn clone(&self) -> Self {
+        init::stack_init(self, |u| u.into_inner())
     }
 }
 
