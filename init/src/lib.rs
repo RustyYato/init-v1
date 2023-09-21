@@ -34,7 +34,6 @@ mod ptr;
 pub mod slice_writer;
 pub mod source;
 
-pub mod array;
 #[cfg(feature = "alloc")]
 pub mod boxed;
 mod hacks;
