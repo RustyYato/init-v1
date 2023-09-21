@@ -8,7 +8,7 @@ use crate::{
     TryPinCtor,
 };
 
-use super::SliceLenLayoutProvider;
+use super::SliceLayoutProvider;
 
 /// An adapter to convert a slice initializer to an array initializer
 pub struct ArrayAdapter<A>(A);
@@ -46,11 +46,11 @@ macro_rules! mk_ctor {
         $(is_arg_cheap $imp_cheap:block)?
     ) => {
         impl<$T $(, $U)*> HasLayoutProvider<$Arg> for [$($slice_ty)*] $(where $($array_bounds)*)? {
-            type LayoutProvider = SliceLenLayoutProvider;
+            type LayoutProvider = SliceLayoutProvider;
         }
 
         // SAFETY: The layout is compatible with cast
-        unsafe impl<$T $(, $U)*> LayoutProvider<[$($slice_ty)*], $Arg> for SliceLenLayoutProvider $(where $($array_bounds)*)? {
+        unsafe impl<$T $(, $U)*> LayoutProvider<[$($slice_ty)*], $Arg> for SliceLayoutProvider $(where $($array_bounds)*)? {
             fn layout_of($layout_args: &$Arg) -> Option<core::alloc::Layout> {
                 Layout::array::<T>($layout_args.0).ok()
             }
@@ -93,11 +93,11 @@ macro_rules! mk_ctor {
         }
 
         impl<$T $(, $U)*, const N: usize> HasLayoutProvider<$Arg> for [$($slice_ty)*; N] $(where $($array_bounds)*)? {
-            type LayoutProvider = SliceLenLayoutProvider;
+            type LayoutProvider = SliceLayoutProvider;
         }
 
         // SAFETY: The layout is compatible with cast
-        unsafe impl<$T $(, $U)*, const N: usize> LayoutProvider<[$($slice_ty)*; N], $Arg> for SliceLenLayoutProvider $(where $($array_bounds)*)? {
+        unsafe impl<$T $(, $U)*, const N: usize> LayoutProvider<[$($slice_ty)*; N], $Arg> for SliceLayoutProvider $(where $($array_bounds)*)? {
             fn layout_of(_: &$Arg) -> Option<core::alloc::Layout> {
                 Some(core::alloc::Layout::new::<[$($slice_ty)*; N]>())
             }
@@ -161,11 +161,11 @@ impl<T: TryPinCtor, const N: usize> TryPinCtor for [T; N] {
 pub struct UninitSliceLen(pub usize);
 
 impl<T> HasLayoutProvider<UninitSliceLen> for [MaybeUninit<T>] {
-    type LayoutProvider = SliceLenLayoutProvider;
+    type LayoutProvider = SliceLayoutProvider;
 }
 
 // SAFETY: The layout is compatible with cast
-unsafe impl<T> LayoutProvider<[MaybeUninit<T>], UninitSliceLen> for SliceLenLayoutProvider {
+unsafe impl<T> LayoutProvider<[MaybeUninit<T>], UninitSliceLen> for SliceLayoutProvider {
     fn layout_of(args: &UninitSliceLen) -> Option<core::alloc::Layout> {
         Layout::array::<T>(args.0).ok()
     }
