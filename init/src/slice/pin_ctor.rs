@@ -179,7 +179,7 @@ mk_ctor! {
 
     is_zeroed(CopyArgs(args)) {
         crate::layout_provider::is_zeroed::<T, Args>(args)
-}
+    }
 
     init(uninit, CopyArgs(args)) {
         uninit.pin_init(to_pin_ctor(super::try_pin_ctor::CopyArgs(of_pin_ctor(args))))
@@ -188,7 +188,7 @@ mk_ctor! {
     is_arg_cheap {
         true
     }
-    }
+}
 
 mk_ctor! {
     for<T, Args> [T] with (CopyArgsLen<Args>)
@@ -206,7 +206,7 @@ mk_ctor! {
 
     init(uninit, CopyArgsLen(_, args)) {
         uninit.pin_init(to_pin_ctor(super::try_pin_ctor::CopyArgs(of_pin_ctor(args))))
-}
+    }
 
     is_arg_cheap {
         true
@@ -234,7 +234,7 @@ mk_ctor! {
 
     is_zeroed(CloneArgs(args)) {
         crate::layout_provider::is_zeroed::<T, Args>(args)
-}
+    }
 
     init(uninit, CloneArgs(args)) {
         uninit.pin_init(to_pin_ctor(super::try_pin_ctor::CloneArgs(of_pin_ctor(args))))
@@ -243,7 +243,7 @@ mk_ctor! {
     is_arg_cheap {
         T::__is_args_clone_cheap()
     }
-    }
+}
 
 mk_ctor! {
     for<T, Args> [T] with (CloneArgsLen<Args>)
