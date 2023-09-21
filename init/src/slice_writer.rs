@@ -61,7 +61,7 @@ impl<'a, T> SliceWriter<'a, T> {
     where
         T: Ctor<Args>,
     {
-        assert!(!self.is_complete());
+        assert!(!self.is_complete() && !self.is_poisoned());
         // SAFETY: this writer isn't complete
         unsafe { self.init_unchecked(args) }
     }
@@ -71,7 +71,7 @@ impl<'a, T> SliceWriter<'a, T> {
     where
         T: TryCtor<Args>,
     {
-        assert!(!self.is_complete());
+        assert!(!self.is_complete() && !self.is_poisoned());
         // SAFETY: this writer isn't complete
         unsafe { self.try_init_unchecked(args) }
     }
@@ -80,12 +80,12 @@ impl<'a, T> SliceWriter<'a, T> {
     ///
     /// # Safety
     ///
-    /// This writer must not be complete
+    /// This writer must not be complete or poisoned
     pub unsafe fn init_unchecked<Args>(&mut self, args: Args)
     where
         T: Ctor<Args>,
     {
-        debug_assert!(!self.is_complete());
+        debug_assert!(!self.is_complete() && !self.is_poisoned());
         // SAFETY: The caller guarantees that this writer isn't complete,
         // which ensure that the iterator isn't empty
         let init = unsafe { self.iter.next_unchecked() }.init(args);
@@ -98,12 +98,12 @@ impl<'a, T> SliceWriter<'a, T> {
     ///
     /// # Safety
     ///
-    /// This writer must not be complete
+    /// This writer must not be complete or poisoned
     pub unsafe fn try_init_unchecked<Args>(&mut self, args: Args) -> Result<(), T::Error>
     where
         T: TryCtor<Args>,
     {
-        debug_assert!(!self.is_complete());
+        debug_assert!(!self.is_complete() && !self.is_poisoned());
         // SAFETY: The caller guarantees that this writer isn't complete,
         // which ensure that the iterator isn't empty
         let init = unsafe { self.iter.next_unchecked() }.try_init(args)?;
@@ -154,17 +154,13 @@ impl<'a, T> SliceWriter<'a, T> {
     ///
     /// # Safety
     ///
-    /// This writer must be complete
+    /// This writer must be complete and not poisoned
     pub unsafe fn finish_unchecked(self) -> Init<'a, [T]> {
         if !self.is_complete() {
             // SAFETY: caller guarantees that writer is complete
             //
             // This allows the poisoned check to be elided if LLVM can guarantee there were no panics
             unsafe { core::hint::unreachable_unchecked() }
-        }
-
-        if self.is_poisoned() {
-            poisoned_error()
         }
 
         // SAFETY:
@@ -178,12 +174,22 @@ impl<'a, T> SliceWriter<'a, T> {
 
 #[cold]
 #[inline(never)]
-fn poisoned_error() -> ! {
-    panic!("Tried to finish an incomplete writer")
-}
-
-#[cold]
-#[inline(never)]
 fn incomplete_error() -> ! {
     panic!("Tried to finish a poisoned writer")
+}
+
+#[test]
+fn test_poisoned() {
+    use core::mem::MaybeUninit;
+    use std::boxed::Box;
+
+    extern crate std;
+
+    let mut m = MaybeUninit::<[Box<i32>; 4]>::uninit();
+    let uninit = Uninit::from_mu_ref(&mut m);
+    let mut slice = SliceWriter::new(uninit.as_slice());
+
+    slice.init(crate::ctor::ctor(|ptr| ptr.write(Box::new(0))));
+    let _ = slice.try_init(crate::try_ctor::try_ctor(|_| Err(())));
+    slice.init(crate::ctor::ctor(|ptr| ptr.write(Box::new(0))));
 }

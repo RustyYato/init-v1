@@ -61,7 +61,7 @@ impl<'a, T> PinSliceWriter<'a, T> {
     where
         T: PinCtor<Args>,
     {
-        assert!(!self.is_complete());
+        assert!(!self.is_complete() && !self.is_poisoned());
         // SAFETY: this writer isn't complete
         unsafe { self.pin_init_unchecked(args) }
     }
@@ -71,7 +71,7 @@ impl<'a, T> PinSliceWriter<'a, T> {
     where
         T: TryPinCtor<Args>,
     {
-        assert!(!self.is_complete());
+        assert!(!self.is_complete() && !self.is_poisoned());
         // SAFETY: this writer isn't complete
         unsafe { self.try_pin_init_unchecked(args) }
     }
@@ -101,7 +101,7 @@ impl<'a, T> PinSliceWriter<'a, T> {
     where
         T: TryPinCtor<Args>,
     {
-        debug_assert!(!self.is_complete());
+        debug_assert!(!self.is_complete() && !self.is_poisoned());
         // SAFETY: The caller guarantees that this writer isn't complete,
         // which ensure that the iterator isn't empty
         let init = unsafe { self.iter.next_unchecked() }.try_pin_init(args)?;
@@ -153,17 +153,13 @@ impl<'a, T> PinSliceWriter<'a, T> {
     ///
     /// # Safety
     ///
-    /// This writer must be complete
+    /// This writer must be complete and not poisoned
     pub unsafe fn finish_unchecked(self) -> PinInit<'a, [T]> {
         if !self.is_complete() {
             // SAFETY: caller guarantees that writer is complete
             //
             // This allows the poisoned check to be elided if LLVM can guarantee there were no panics
             unsafe { core::hint::unreachable_unchecked() }
-        }
-
-        if self.is_poisoned() {
-            poisoned_error()
         }
 
         // SAFETY:
@@ -173,12 +169,6 @@ impl<'a, T> PinSliceWriter<'a, T> {
         // at most once for this `SliceWriter`
         unsafe { ManuallyDrop::new(self).get_remaining() }
     }
-}
-
-#[cold]
-#[inline(never)]
-fn poisoned_error() -> ! {
-    panic!("Tried to finish an incomplete writer")
 }
 
 #[cold]

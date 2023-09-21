@@ -1,4 +1,4 @@
-use core::{marker::PhantomData, ptr::NonNull};
+use core::{marker::PhantomData, mem::MaybeUninit, ptr::NonNull};
 
 struct Invariant<'a>(PhantomData<fn() -> *mut &'a ()>);
 
@@ -33,6 +33,18 @@ pub struct Init<'a, T: ?Sized> {
     ptr: NonNull<T>,
     _brand: Invariant<'a>,
     ty: PhantomData<T>,
+}
+
+impl<'a, T> Uninit<'a, T> {
+    /// Create an `Uninit` from a reference
+    ///
+    /// NOTE: All writes to the `Uninit` will overwrite
+    /// this reference without dropping the existing `T`
+    #[inline]
+    pub fn from_mu_ref(ptr: &'a mut MaybeUninit<T>) -> Self {
+        // SAFETY: a reference is non-null, aligned, dereferencable, and unique for `'a`
+        unsafe { Self::from_raw(ptr.as_mut_ptr()) }
+    }
 }
 
 impl<'a, T: ?Sized> Uninit<'a, T> {
