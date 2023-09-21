@@ -61,7 +61,10 @@ impl<'a, T> SliceWriter<'a, T> {
     where
         T: Ctor<Args>,
     {
-        assert!(!self.is_complete() && !self.is_poisoned());
+        assert!(
+            !self.is_complete() && !self.is_poisoned(),
+            "slice writer must not be complete or poisoned"
+        );
         // SAFETY: this writer isn't complete
         unsafe { self.init_unchecked(args) }
     }
@@ -71,7 +74,10 @@ impl<'a, T> SliceWriter<'a, T> {
     where
         T: TryCtor<Args>,
     {
-        assert!(!self.is_complete() && !self.is_poisoned());
+        assert!(
+            !self.is_complete() && !self.is_poisoned(),
+            "slice writer must not be complete or poisoned"
+        );
         // SAFETY: this writer isn't complete
         unsafe { self.try_init_unchecked(args) }
     }
@@ -85,13 +91,11 @@ impl<'a, T> SliceWriter<'a, T> {
     where
         T: Ctor<Args>,
     {
-        debug_assert!(!self.is_complete() && !self.is_poisoned());
-        // SAFETY: The caller guarantees that this writer isn't complete,
-        // which ensure that the iterator isn't empty
-        let init = unsafe { self.iter.next_unchecked() }.init(args);
-        // We take ownership of the newly constructed value
-        core::mem::forget(init);
-        self.init += 1;
+        // SAFETY: guaranteed by caller
+        match unsafe { self.try_init_unchecked(crate::try_ctor::of_ctor(args)) } {
+            Ok(()) => (),
+            Err(inf) => match inf {},
+        }
     }
 
     /// Write the next element of the slice (write goes in order, from 0 -> len)
@@ -103,7 +107,10 @@ impl<'a, T> SliceWriter<'a, T> {
     where
         T: TryCtor<Args>,
     {
-        debug_assert!(!self.is_complete() && !self.is_poisoned());
+        debug_assert!(
+            !self.is_complete() && !self.is_poisoned(),
+            "slice writer must not be complete or poisoned"
+        );
         // SAFETY: The caller guarantees that this writer isn't complete,
         // which ensure that the iterator isn't empty
         let init = unsafe { self.iter.next_unchecked() }.try_init(args)?;
@@ -179,6 +186,7 @@ fn incomplete_error() -> ! {
 }
 
 #[test]
+#[should_panic = "slice writer must not be complete or poisoned"]
 fn test_poisoned() {
     use core::mem::MaybeUninit;
     use std::boxed::Box;

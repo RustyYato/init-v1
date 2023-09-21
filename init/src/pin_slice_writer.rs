@@ -61,7 +61,10 @@ impl<'a, T> PinSliceWriter<'a, T> {
     where
         T: PinCtor<Args>,
     {
-        assert!(!self.is_complete() && !self.is_poisoned());
+        assert!(
+            !self.is_complete() && !self.is_poisoned(),
+            "pin slice writer must not be complete or poisoned"
+        );
         // SAFETY: this writer isn't complete
         unsafe { self.pin_init_unchecked(args) }
     }
@@ -71,7 +74,10 @@ impl<'a, T> PinSliceWriter<'a, T> {
     where
         T: TryPinCtor<Args>,
     {
-        assert!(!self.is_complete() && !self.is_poisoned());
+        assert!(
+            !self.is_complete() && !self.is_poisoned(),
+            "pin slice writer must not be complete or poisoned"
+        );
         // SAFETY: this writer isn't complete
         unsafe { self.try_pin_init_unchecked(args) }
     }
@@ -101,7 +107,10 @@ impl<'a, T> PinSliceWriter<'a, T> {
     where
         T: TryPinCtor<Args>,
     {
-        debug_assert!(!self.is_complete() && !self.is_poisoned());
+        debug_assert!(
+            !self.is_complete() && !self.is_poisoned(),
+            "pin slice writer must not be complete or poisoned"
+        );
         // SAFETY: The caller guarantees that this writer isn't complete,
         // which ensure that the iterator isn't empty
         let init = unsafe { self.iter.next_unchecked() }.try_pin_init(args)?;
